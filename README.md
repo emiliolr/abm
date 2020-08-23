@@ -6,5 +6,5 @@
 
 # Index
 
-1. [Getting started with R](getting_started_w_r.html)
+1. [Getting started with coding in R](getting_started_w_r.html)
 
