@@ -6,6 +6,5 @@
 
 # Index
 
-1. [Getting started with R](getting_started_w_r.html) 
-- [Download the code](getting_started_w_r.rmd)
+1. [Getting started with R](getting_started_w_r.html) (or you can [download](getting_started_w_r.rmd) the code)
 
