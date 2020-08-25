@@ -6,5 +6,5 @@
 
 # Index
 
-1. [Getting started with R](getting_started_w_r.html) (or you can [download](getting_started_w_r.Rmd) the code)
+1. [Getting started with R](getting_started_w_r.html) - this exercise includes basic plotting with Base R and ggplot.
 
