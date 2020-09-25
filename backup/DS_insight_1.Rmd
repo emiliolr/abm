@@ -1,0 +1,143 @@
+---
+title: "Data Science Insight 1: Time Series Analysis in R"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    highlight: pygments
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(knitr)
+library(feasts)
+library(tsibble)
+library(fable)
+library(nycflights13)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "85%")
+```
+
+# Introduction
+
+We've all heard of the **Tidyverse**, the meta package that has revolutionized R. A less well known meta package that also adheres to the tidy data ideology is **Tidyverts** (a note: it seems that the actual meta package isn't available for R version `r str_c(version$major, ".", version$minor)`, so you'll just have to download and import each package separately).
+
+Before we begin, I ought to add a **disclaimer**: I am in no way an expert with time series analysis. I'm more of an enthusiast, really. 
+
+With that out of the way, I think it would be good to have a little history lesson. The tidy ideology that has taken R by storm was spearheaded by Hadley Wickham, who has done major work on the **Tidyverse** package. A bunch of other meta packages have popped up that also adhere to the tidy ideology, like **Tidymodels** (for modeling, unsurprisingly), **Tidytext** (for text analysis), and **Tidyverts**, our package of interest.
+
+Tidyverts is a package that Rob Hyndman, a big name in forecasting and time series analysis, helped put together to facilitate time series analyses in R. I actually heard about Tidyverts through Hyndman's [blog](https://robjhyndman.com/hyndsight/), which I definitely recommend checking out!
+
+Time series analysis is fundamentally the study of data that has a time component. Forecasting, using time series data to try to make predictions for the future, is one of the most important applications of time series analysis. In this Data Science Insight, I'm going to walk through some basic elements of Tidyverts and then I'll focus in on visualization of time series data using Tiydverts. Hopefully we can all learn a little bit!
+
+# Getting to Some Time Series Anlaysis
+
+The basic data structure of Tidyverts is the `tsibble`. Basically, a `tsibble` is the Tidyverts counterpart to a `tibble` from Tidyverse, which of course is just an augmented `data.frame`. So, why do we use a `tsibble` rather than a `data.frame` or `tibble`? An example might help here. I'm using the classic `nycflights13` library for data here, specifically extracting weather data. 
+
+```{r creating-tsibble, echo = TRUE}
+weather_data <- nycflights13::weather %>%
+  select(origin, time_hour, temp, humid, precip)
+
+weather_data <- weather_data %>% as_tsibble(index = time_hour, key = origin)
+
+weather_data
+```
+
+Notice that `nycflights13::weather` comes in as a `tibble`, but we were able to convert it over to a `tsibble` by simply using `tsibble::as_tsibble()`, providing an **index** and a **key**. The index is just the time series component and the key is the differentiating identifier for observations with the same index. So, between the index and the key, we can uniquely identify our time series observations!
+
+After getting to a `tsibble`, we can perform Tidyverse-esque operations that play nicely with the temporal aspect of our data. For instance, `tsibble::index_by()` and `dplyr::summarize()` is an analogous grouping of operations to `dplyr::group_by()` and `dplyr::summarize()`.
+
+```{r showing-index-by, echo = TRUE}
+weather_data %>% 
+  group_by_key() %>% #maintaining differentiation between keys
+  index_by(date = ~ as_date(.)) %>% #adding a date column
+  summarize(max_precip = max(precip), #summarizing, grouped by key and date
+            avg_precip = mean(precip),
+            min_precip = min(precip))
+```
+
+# Visualizing Time Series Data
+
+So, now that we have some idea of how to work with a `tsibble`, what's next? Personally, I really enjoy data visualization, so I thought it would be interesting to look through some of Tidyvert's visualization offerings.
+
+We'll work with the `tsibble::tourism` data set to do some exploratory data viz. The first step is reading in the data and a little bit of data manipulation.
+
+```{r tourism-data, echo = TRUE}
+ad_tourism <- tsibble::tourism %>% filter(Region == "Adelaide")
+
+ad_tourism %>% #taking a look at the data
+  group_by(Purpose) %>% 
+  slice(1) #grabbing first quarter data
+```
+
+We can take a look at the time plot for the trends here with `feasts::autoplot()`.
+
+```{r plot-autoplot, echo = TRUE}
+ad_tourism %>% 
+  autoplot(Trips)
+```
+
+We can immediately see higher variance in the trends for _business_, _holiday_, and _visiting_ trips, which might indicate seasonal trends (intuitively, these travel purposes should have an element of seasonality). To explore seasonality for the different trip purposes, we can produce a plot split by _purpose_ and by _year_ with `feasts::gg_season()`.
+
+```{r plot-gg-season, echo = TRUE}
+ad_tourism %>% gg_season(y = Trips)
+```
+
+Now, we can begin to make some real observations. For instance, it's clear that the end of Quarter 1/beginning of Quarter 4 is a high point for trips related to _holidays_, which makes sense. Also, Quarters 2 and 3 seem to have the most _business_-related travel. Another way to visualize the seasonality is through `feasts::gg_subseries()`.
+
+```{r plot-gg-subseries, echo = TRUE}
+ad_tourism %>% gg_subseries(y = Trips)
+```
+
+The blue lines here shows the quarterly averages for each trip purpose, making it much easier to see the differences in activity. Simply from this plot, it seems likely that travel related to _visiting_ is correlated with _holidays_.
+
+# Some Analysis
+
+While the visualization is nice, it's mostly exploratory. However, we can pretty easily do some analysis here to quantitatively describe the seasonality of these different time series. We can perform a **seasonal trend decomposition** by using `fabletools::features()`.
+
+```{r stl-features, echo = TRUE}
+ad_stl <- ad_tourism %>% #extracting for only Adelaide
+  features(Trips, feature_set(tags = "stl"))
+
+tourism_stl <- tsibble::tourism %>% #extracting for all regions
+  features(Trips, feature_set(tags = "stl"))
+
+ggplot() + #plotting trend_strength against seasonal_trend_strength
+  geom_point(data = tourism_stl, 
+             mapping = aes(x = trend_strength, y = seasonal_strength_year, color = Purpose), 
+             show.legend = FALSE, alpha = 0.3) +
+  geom_point(data = ad_stl, 
+             mapping = aes(x = trend_strength, y = seasonal_strength_year, fill = Purpose), 
+             show.legend = FALSE, size = 2.5, pch = 21) +
+  facet_wrap(~ Purpose) +
+  lims(x = c(0, 1), y = c(0, 1)) +
+  theme(aspect.ratio = 1, axis.text = element_text(size = 6))
+```
+
+So, we can see exactly where Adelaide falls among other regions of Australia when plotting `seasonal_strength_year` against `trend_strength`! It's very clear here that _holiday_-related traveling exhibits the highest seasonality, which is a neat and intuitive result.
+
+# Wrapping Up
+
+Applications of time series analysis and forecasting in human development should be pretty immediately evident. Certainly, it would be nice to get to just work with cross sectional data all the time, but that's just not realistic. Things like population distribution, infant mortality, and other key indicators should be thought of as measures with a temporal component; ignoring that temporal component means losing a lot of key information. Since we clearly will need to work with time series data, forecasting and other time series approaches provide the key tools and techniques for in-depth applied analysis.
+
+I haven't done anything revolutionary here; all I've done really is put together information from a number of different online resources (I've included links to all the resources that I used below). This is the beauty of open source software, though: there are fantastic resources online that can help you get up and running even if you start out with very little prior knowledge! If you found this interesting, I definitely recommend checking out some of the links below!
+
+# Links
+<!-- 
+SITES:
+- Hyndsight blog: https://robjhyndman.com/hyndsight/
+- Forecasting text book: https://otexts.com/fpp3/index.html
+- Tidyverts: https://tidyverts.org/
+- tsibble vignette: https://cran.rstudio.com/web/packages/tsibble/vignettes/intro-tsibble.html
+- feasts vignette: https://cran.r-project.org/web/packages/feasts/vignettes/feasts.html
+-->
+
+I've gathered here a number of links to different resources for time series analysis and forecasting with Tidyverts:
+
+* [Hyndman's applied forecasting textbook](https://otexts.com/fpp3/index.html) - a comprehensive resource for performing applied time series analyses.
+* [The Tidyverts documentation](https://tidyverts.org/) - a nice resource once you're moore comfortable with Tidyverts.
+* [The tsibble vignette](https://cran.rstudio.com/web/packages/tsibble/vignettes/intro-tsibble.html) - the section that introduced the `tsibble` was modeled off of this vignette.
+* [The feasts vignette](https://cran.r-project.org/web/packages/feasts/vignettes/feasts.html) - the section that introduced the visualization was modeled off of this vignette.
+
+

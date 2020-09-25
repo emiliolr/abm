@@ -1,0 +1,140 @@
+---
+title: "Population Description"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+library(sf)
+library(tidyverse)
+library(units)
+library(scales)
+library(ggpubr)
+library(raster)
+library(knitr)
+library(kableExtra)
+
+load("population_with_sf.Rdata")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
+```
+
+# Adding Variables to Our Data
+
+To begin, I made some small adjustments to the original data set. Now we have both an "area" and "density" variable, both of which will be used in the next two plots. 
+
+```{r manipulating_data, echo = TRUE}
+swz_adm1 <- swz_adm1 %>% 
+  mutate(area = st_area(swz_adm1) %>% set_units("km^2"),
+         density = pop20 / area)
+```
+
+# Making a Bar Plot
+
+Next, I made a bar plot to compare the populations for each region of Eswatini.
+
+```{r plot-pop-bar}
+plot_pop_bar <- swz_adm1 %>% 
+  mutate(NAME_1 = fct_reorder(NAME_1, pop20)) %>% 
+  ggplot(mapping = aes(x = NAME_1, y = pop20, fill = pop20)) +
+  theme_bw() +
+  geom_bar(stat = "identity", color = "black", width = 0.65, show.legend = FALSE) +
+  geom_text(mapping = aes(label = percent(pop20 / sum(pop20))), position = position_stack(vjust = 0.5), fontface = "bold") + 
+  labs(y = "Population", x = NULL) +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0.02, 0.05))) +
+  scale_fill_gradient(low = "azure", high = "maroon") +
+  coord_flip() +
+  theme(panel.grid.minor = element_blank())
+plot_pop_bar
+```
+
+This bar plot goes nicely with a spatial representation of population distribution across the four regions of Esawtini. To add in additional information, I set the bar plot on the same axes as an earlier plot. This time, however, the numbers under the names of each region signify the population density of that region in people per km^2^.
+
+```{r plot-combined, fig.width = 10, fig.height = 5, out.width = "90%"}
+plot_adm1_pop <- ggplot(swz_adm1) +
+  theme_bw() +
+  geom_sf(mapping = aes(fill = pop20), show.legend = FALSE) +
+  geom_sf_text(mapping = aes(label = NAME_1), fontface = "bold") +
+  geom_sf_text(mapping = aes(label = round(density, 2)), nudge_y = -0.075, size = 3) +
+  scale_fill_gradient(low = "azure", high = "maroon") + 
+  scale_x_continuous(breaks = seq(30.8, 32.2, by = 0.3)) +
+  labs(title = "", fill = "Population", x = "Latitude", y = "Longitude")
+
+arr_plot <- ggarrange(plot_adm1_pop, plot_pop_bar, nrow = 1, widths = c(2.25, 2))
+
+annotate_figure(arr_plot, top = text_grob("Eswatini in 2020", color = "black", face = "bold", size = 25))
+```
+
+# A Challenge
+
+I liked the information that was conveyed in _Individual Stretch Goal 1_, but I found it a little hard to read. I instead opted to go for a plot that displayed similar information, while also being easier to read. To achieve this, I used the `ggplot2::facet_wrap()` function and a `geom_point()` layer.
+
+```{r plot-challenge, out.width = "85%"}
+swz_adm2 %>% 
+  mutate(NAME_2 = fct_reorder(NAME_2, pop20)) %>%
+  ggplot(mapping = aes(x = NAME_2, y = pop20, color = NAME_1)) +
+  theme_bw() +
+  geom_point(show.legend = FALSE, size = 2) +
+  facet_wrap(~NAME_1, scales = "free_y", ncol = 2) +
+  coord_flip() +
+  labs(y = "Population (2020)", x = NULL) +
+  theme(strip.text = element_text(face  = "bold"), panel.grid.minor = element_blank(), aspect.ratio = 0.9)
+```
+
+# Zooming in on the Manzini Region
+
+Recreating these plots for just Manzini is pretty easy. Since we already have the necessary elements (included in the `raster::extract()` process from a previous exercise), we just need to filter the tinkhundla that are part of Manzini (`r swz_adm2 %>% filter(NAME_1 == "Manzini") %>% .$NAME_2 %>% combine_words()`).
+
+```{r get-manzini, echo = TRUE}
+just_manzini <- swz_adm2 %>% filter(NAME_1 == "Manzini")
+
+just_manzini <- just_manzini %>% mutate(area = st_area(just_manzini) %>% set_units("km^2"), 
+                                        density = pop20 / area)
+```
+
+Then, we just need to recreate the plots. I didn't include the challenge plot in this step because, since the data didn't change (I used the GADM shapefiles throughout, which only includes first and second level administrative boundaries), the challenge plot didn't convey much new information.
+
+```{r plot-combined-manzini, fig.width = 10, fig.height = 5, out.width = "90%"}
+plot_pop_bar_manzini <- just_manzini %>% 
+  mutate(NAME_2 = fct_reorder(NAME_2, pop20)) %>% 
+  ggplot(mapping = aes(x = NAME_2, y = pop20, fill = pop20)) +
+  theme_bw() +
+  geom_bar(stat = "identity", color = "black", width = 0.65, show.legend = FALSE) +
+  geom_text(mapping = aes(label = (pop20 / sum(pop20)) %>% round(3) %>% percent()), 
+            position = position_stack(vjust = 0.5), fontface = "bold", size = 3) + 
+  labs(y = "Population", x = NULL) +
+  scale_y_continuous(labels = comma, expand = expansion(mult = c(0.02, 0.05))) +
+  scale_fill_gradient(low = "azure", high = "maroon") +
+  coord_flip() +
+  theme(panel.grid.minor = element_blank())
+
+plot_adm1_pop_manzini <- ggplot(just_manzini) +
+  theme_bw() +
+  geom_sf(mapping = aes(fill = pop20), show.legend = FALSE) +
+  geom_sf_text(mapping = aes(label = NAME_2), fontface = "bold", size = 2) +
+  # geom_sf_text(mapping = aes(label = round(density, 2)), nudge_y = -0.075, size = 3) +
+  scale_fill_gradient(low = "azure", high = "maroon") + 
+  scale_x_continuous(breaks = seq(30.8, 32.2, by = 0.3)) +
+  labs(title = "", fill = "Population", x = "Latitude", y = "Longitude")
+
+arr_plot <- ggarrange(plot_adm1_pop_manzini, plot_pop_bar_manzini, nrow = 1, widths = c(2.25, 2))
+
+annotate_figure(arr_plot, top = text_grob("Manzini in 2020", color = "black", face = "bold", size = 25))
+```
+
+Since the spatial plot is a little cramped already, I'm instead including a table that relates the information about the density in each tinkhundla in Manzini.
+
+```{r}
+just_manzini %>% 
+  as_tibble() %>% 
+  mutate(density = density %>% as.numeric() %>% round(2)) %>%
+  dplyr::select(NAME_2, density) %>% 
+  rename(Tinkhundla = NAME_2, Density = density) %>% 
+  kable() %>% 
+  kable_styling()
+```
+
+
+

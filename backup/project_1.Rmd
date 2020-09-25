@@ -1,0 +1,81 @@
+---
+title: "Project 1"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(raster)
+library(knitr)
+
+load("adm2_urban_areas.RData")
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "85%")
+```
+
+# Introduction
+
+This page mainly acts as a landing page and summary for the different elements of Project 1. Additionally, I provide some unique analyses in this deliverable that are not included in the deliverable for each exercise.
+
+Throughout this project, the scope of my analysis shrank and grew, generally because of particularly expensive computations. To begin the project, I had hoped to study the **Manzini** region of Eswatini, but the bandwidth calculation in the urban areas exercise (`spatstat::bw.ppl()`) took far too long. So, I decided to change course and focus in on just **Mkhiweni**, a tinkhundla within the Manzini region. Farther along in the exercise, it made sense to add in several contiguous tinkhundla (**Ekukhanyeni** and **Mphalaleni**), which meant that my area of focus once again changed. In the end, while the main focus was Mkhiweni, Ekukhanyeni and Mphalaleni were used to contextualize the population, infrastructure, and spatial features observed in Mkhiweni.
+
+**HOW TO READ THIS WRITE UP:** the questions and analyses that are outlined in the project specifications are seen to on this page. When I reference a figure in this write up, I link to it (and the corresponding deliverable) rather than include it directly to reduce unnecessary repetition.
+
+# Initial Population Description
+
+[Link to the exercise deliverable](https://emiliolr.github.io/abm/population_description.html).
+
+This first part of the project, while pretty simple, was very valuable. Using the visualizations and results from this exercise, I was able to better understand the population features in Eswatini as they related to the artificial (administrative) subdivisions of the country. After finishing this exercise, it seemed like Manzini would be an interesting region to approach for analysis. However, as stated previously, its large population led to infeasible computations.
+
+```{r even-dist-pop, include = FALSE}
+pop20 <- raster("Data/swz_ppp_2020_1km_Aggregated.tif")
+swz_adm1 <- sf::read_sf("Data/gadm36_SWZ_shp/gadm36_SWZ_1.shp")
+
+swz_adm1 <- swz_adm1 %>% 
+  mutate(area = st_area(swz_adm1),
+         exp_pop = cellStats(pop20, "sum") * (area / sum(area)))
+```
+
+I especially like the [challenge plot](https://emiliolr.github.io/abm/population_description.html#a-challenge) from this exercise. We get a lot of very useful information about the population of Eswatini out of a relatively compact plot. We can also begin to see the relative population distributions for the lower-level subdivisions across the four regions. 
+
+As an interesting thought experiment, I decided to see what we might expect the population to be for each region if population were uniformly distributed. To do this, I simply portioned out the population based on area. Since Manzini only represents about `r ((swz_adm1 %>% filter(NAME_1 == "Manzini") %>% .$area) / sum(swz_adm1$area) * 100) %>% round(2) %>% as.numeric()`% of the area of Eswatini, it's suprising (from this somewhat naive perspective) to see that it actually contains about 33.7% of the population. In the end, a number of other elements factor into settlement decisions. To get a more complete perspective here, one would have to consider the history of Eswatini, demographics, topographic/other geographic features, and more. Still, it's an interesting thing to think about! Regardless, it was quite clear after completing this exercise that Manzini would be an interesting region for further analysis.
+
+# Defining Urban Areas
+
+[Link to the exercise deliverable](https://emiliolr.github.io/abm/description_of_settlements.html).
+
+Administrative subdivisions, while a good starting point, are politically defined and don't fully capture the more natural elements of human settlement (the _de facto_ settlements). So, next I worked on defining the urban areas present in Mkhiweni based on population count and density (these seem like good metrics, but other metrics could be used, i.e., maybe an urban area is an area that contains at least one hospital or is an area to which people commute with high frequency).
+
+One of the most interesting parts of this process was seeing how the urban areas changed when widening the scope of analysis (see the redefined urban areas after adding Ekukhanyeni and Mphalaleni [here](https://emiliolr.github.io/abm/roads_and_healthcare.html#adding-in-additional-tinkhundla)). When I just looked at Mkhiweni, there was a long densely-populated band along the western edge. Notice how that band basically disappears in the plot with wider scope (really, it seems like the band was split into several different urban areas). The takeaway here is that the idea of an "urban area" is _highly_ contextual: as the scope of analysis changes, settlements that were previously considered urban may not be anymore.
+
+In both cases, the system of urban regions generally followed a power law ([for just Mkhiweni](https://emiliolr.github.io/abm/description_of_settlements.html#a-challenge-zipfs-law) and [after the additional subdivisions were added](https://emiliolr.github.io/abm/roads_and_healthcare.html#zipfs-law-revisited)), although both exhibited more extreme distributions as compared to the expected distributions. There are a number of possible explanations here, but the most convincing, in my opinion, has everything to do with the low number of data points: because there aren't many data points here, we are seeing messy (empirical) results. This is simply a matter of scope, as most problems in probability and statistics are. If we just had more data points, we might see results more consistent with what Zipf's Law predicts.
+
+# Adding Roads and Educational/Health Care Facilities
+
+[Link to the exercise deliverable](https://emiliolr.github.io/abm/roads_and_healthcare.html).
+
+The urban areas in both Mkhiweni and the three-subdivision conglomerate follow the largest road quite closely (the widest road in both the [Mkhiweni](https://emiliolr.github.io/abm/roads_and_healthcare.html#adding-road-networks) and [conglomerate plot](https://emiliolr.github.io/abm/roads_and_healthcare.html#re-inspecting-the-road-network-health-care-facilities-and-educational-facilities)). Certainly, it would be quite interesting to see if this same pattern continues into the contiguous subdivisions and where the major road here terminates (perhaps one of larger cities of Eswatini).
+
+As I noted in the exercise deliverable, something strange happened when I widened the scope of my analysis: the northwest region of the conglomerate exhibited a low population density but a dense road network. Additionally, the health care and educational facilities seem strangely placed: they lie in the middle of an apparently sparsely populated region. I listed a number of possible explanations for this in the deliverable, although I think it's worth re-emphasizing: if this is truly the state of the road network, urban areas, and educational/health care facilities rather than an artifact of my analysis or issues with data completeness, then we have a _real_ issue with accessibility here. 
+
+```{r pop-calcs, include = FALSE}
+pop_in_urban <- urban_areas_exp$pop20 %>% sum()
+
+pop_comb_ttl <- raster("Data/swz_ppp_2020.tif") %>% 
+  crop(comb_adm2) %>% 
+  mask(comb_adm2) %>% 
+  cellStats("sum")
+```
+
+We only have two health care centers (both classified as "clinics," although what this actually means is somewhat unclear) that, while relatively well placed to service the most populated region in the south, are poorly positioned to cater to the needs of the northeastern region. Furthermore, while the northwestern and eastern regions are too sparsely populated to be classified as urban areas, this doesn't mean that _no one_ lives there. In fact, only about `r ((pop_in_urban / pop_comb_ttl) * 100) %>% round(2)`% of people live in urban areas in the conglomerate: `r pop_in_urban %>% round() %>% format(scientific = F)` in urban areas and `r (pop_comb_ttl - pop_in_urban) %>% round() %>% format(scientific = F)` in non-urban areas. This, to me, is a troubling possibility; two health care facilities doesn't seem sufficient for `r pop_comb_ttl %>% round() %>% format(scientific = F)` people. Even with a dense and well-connected road network, demand seems to far outstrip supply here. However, there may be external issues (as mentioned previously), in which case accessibility may not be as poor as it seems here.
+
+# Discussion
+
+There are some extensions that immediately come to mind that might help address some of the issues from different parts of the project. In particular, bringing in land use and land cover data might help clear up the strangeness that I experienced with the placement of health care/educational facilities. While I spent a little bit of time with topographic data (the result being a [nice plot](https://emiliolr.github.io/abm/roads_and_healthcare.html#adding-topographic-information-into-the-mix) that integrates all of the data), I think this would've also been a good place to spend more time. Also, many parts of the project had subjective (i.e., personal choices when defining the urban areas) or semi-random elements (i.e., `spatstat::rpoint()`). If we were trying to perform a more rigorous analysis using this data, these parts of the process would need to be standardized in some way (i.e., set rules for defining urban areas, running the `rpoint()` function many times and finding an average planar point pattern, and so on).
+
+Overall, this was a great project! I definitely feel much more confident with spatial analysis now, which is the most important part. I'm looking forward to future projects!

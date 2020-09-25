@@ -1,0 +1,83 @@
+---
+title: "Plotting Population Data"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(raster)
+
+load("population_with_sf.Rdata")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
+```
+
+# Bringing in Raster Data
+
+The first step of this exercise was to acquire raster data for population. I again used Swaziland, although I plan to focus in on just the Manzini region in the future (mostly because it has a relatively small population of about `r swz_adm1 %>% filter(NAME_1 == "Manzini") %>% .[["pop20"]] %>% round() %>% format(scientific = FALSE)`).
+
+The first step here was to read in the raster data using `raster::raster()`. Once brought in, I made a simple plot using base R.
+
+```{r plot-initial-raster}
+plot(swz_pop20)
+
+plot(st_geometry(swz_adm1), add = TRUE)
+```
+
+This all looks as expected. We can even begin to see some more densely populated areas (the city Manzini and the capital Mbabane). 
+
+
+# Aggregating Population Data to the Region-Level
+
+Next, I performed the parallel processing techniques as laid out in the exercise to aggregate the raster population data to the first level of administrative boundaries (regions). Then, combining this data with the `sf` geometry data, I used `ggplot` to plot the results.
+
+```{r plot-adm1-pop}
+ggplot(swz_adm1) +
+  theme_bw() +
+  geom_sf(mapping = aes(fill = pop20)) +
+  geom_sf_text(mapping = aes(label = NAME_1)) +
+  scale_fill_gradient(low = "azure", high = "maroon") + 
+  scale_x_continuous(breaks = seq(30.8, 32.2, by = 0.3)) +
+  labs(fill = "Population (2020)", x = "Latitude", y = "Longitude")
+```
+
+# Aggregating Population Data to the Tinkhundla-Level
+
+Finally, I aggregated to the tinkhundla level and plotted the results once again. It's worth noting that the `fill` aesthetic is mapping to the natural logarithm of population.
+
+```{r plot-adm2-pop}
+ggplot() +
+  theme_bw() +
+  geom_sf(data = swz_adm2, mapping = aes(fill = log(pop20)), size = 0.25, color = "black") +
+  geom_sf(data = swz_adm1, alpha = 0, color = "black", size = 0.85) +
+  geom_sf_text(data = swz_adm2, mapping = aes(label = NAME_2), size = 1.5) +
+  geom_sf_text(data = swz_adm1, mapping = aes(label = NAME_1), size = 4, alpha = 0.35) +
+  scale_x_continuous(breaks = seq(30.8, 32.2, by = 0.3)) +
+  scale_fill_gradient2(low = "lightsteelblue", mid = "lightyellow1", high = "maroon", midpoint = 9.5) +
+  labs(fill = "Log of Population \n(2020)", x = "Latitude", y = "Longitude") +
+  theme(panel.background = element_rect(fill = "azure"), panel.grid = element_blank())
+```
+
+We can zoom in to just our region of interest, Manzini, as well.
+
+```{r plot-pop-manzini}
+adm1_manzini <- swz_adm1 %>% filter(NAME_1 == "Manzini")
+adm2_manzini <- swz_adm2 %>% filter(NAME_1 == "Manzini")
+
+ggplot() +
+  theme_bw() +
+  geom_sf(data = adm2_manzini, mapping = aes(fill = log(pop20)), size = 0.25, color = "black") +
+  geom_sf(data = adm1_manzini, alpha = 0, color = "black", size = 0.85) +
+  geom_sf_text(data = adm2_manzini, mapping = aes(label = NAME_2), size = 2) +
+  geom_sf_text(data = adm1_manzini, mapping = aes(label = NAME_1), size = 6, alpha = 0.35, nudge_y = -0.075) +
+  scale_fill_gradient2(low = "lightsteelblue", mid = "lightyellow1", high = "maroon", midpoint = 9.5) +
+  labs(fill = "Log of Population \n(2020)", x = "Latitude", y = "Longitude") +
+  theme(panel.background = element_rect(fill = "azure"), panel.grid = element_blank())
+```
+
+
+

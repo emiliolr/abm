@@ -1,0 +1,167 @@
+---
+title: "Adding Road Networks and Healthcare Facilities"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(ggrepel)
+library(units)
+library(knitr)
+
+load("for_desc_of_settle.RData")
+load("for_roads_and_healthcare.RData")
+load("adm2_urban_areas.RData")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "85%")
+```
+
+# Adding Road, Health Care, and Education Data
+
+A next big step to enhancing our de facto urban area data sets is adding elements of infrastructure. I downloaded several different shapefiles from **HDX** in order to put together the following few plots.
+
+## Adding Road Networks
+
+I began by adding in road networks, sorting the many provided classifications into three distinct categories: `primary_routes`, `secondary_routes`, `tertiary_routes`. Then, I scaled the `size` argument in `ggplot` to visually convey each road's category.
+
+```{r plot-roads}
+ggplot() + #plotting the different road types along with adm2/urban areas 
+  theme_bw() +
+  geom_sf(data = swz_mk, fill = "steelblue1", alpha = 0.2) +
+  geom_sf(data = urban_areas, fill = "steelblue2", alpha = 0.2) +
+  geom_sf(data = primary_routes, color = "darkorange3", size = 1.2) +
+  geom_sf(data = secondary_routes, color = "darkorange3", size = 0.6) +
+  geom_sf(data = tertiary_routes, color = "darkorange3", size = 0.2) +
+  labs(x = "Latitude", y = "Longitude")
+```
+
+It looks like the largest settlement just follows the main road of Mkhiweni, which is relatively unsurprising.
+
+## Adding Health Care and Educational Facilities
+
+Given that Mkhiweni is pretty small and seemingly relatively rural (which is saying something in an LMIC like Eswatini), there aren't many health care facilities within its the borders. This is probably an issue of accessibility and might indicate a need for additional elements of infrastructure. In the next plot, I add in health care (distinguishing by the `amenity` variable from the data set) and educational facilities. I also include population data, although I omitted the density labels because they cluttered up the plot.
+
+```{r plot-all-together}
+ggplot() + #plotting the different road types along with adm2/urban areas 
+  theme_bw() +
+  geom_sf(data = swz_mk, fill = "grey90", alpha = 0.9) +
+  geom_sf(data = urban_areas, mapping = aes(fill = log(pop20)), alpha = 0.9) +
+  geom_sf(data = primary_routes, color = "darkorange3", size = 1.2) + 
+  geom_sf(data = secondary_routes, color = "darkorange3", size = 0.6) +
+  geom_sf(data = tertiary_routes, color = "darkorange3", size = 0.2) +
+  geom_sf(data = mk_schools, size = 1.5, shape = 12) +
+  geom_sf(data = mk_health_care, mapping = aes(color = amenity), shape = 3, size = 2.5) +
+  scale_color_brewer(palette = "PiYG") +
+  scale_fill_gradient(low = "azure", high = "maroon") +
+  labs(x = "Latitude", y = "Longitude", fill = "Log of Population", color = "Facility Type")
+```
+
+Notice how there is a cluster of educational (the boxes) and health care facilities to the West of Mkhiweni, which might indicate a larger urban area. 
+
+# Adding in Additional Tinkhundla
+
+Limiting the bounds to Mkhiweni means that we lose valuable data on the interaction between Mkhiweni and its neighboring tinkhundla. So, I decided to add in a few contiguous tinkhundla (Mphalaleni and Ekukhanyeni).
+
+```{r plot-expanded-urban-area, out.width = "90%"}
+ggplot() +
+  theme_bw() +
+  geom_sf(data = comb_adm2, fill = "grey80", color = "black", alpha = 0.7) +
+  geom_sf(data = urban_areas_exp, mapping = aes(fill = log(pop20))) +
+  geom_text_repel(data = urban_areas_exp, mapping = aes(label = round(density, 2), geometry = geometry), 
+                  stat = "sf_coordinates", size = 3, min.segment.length = 0, fontface = "bold") + #adding repelled text for density
+  labs(y = "Longitude", x = "Latitude", fill = "Log of Population") +
+  scale_fill_gradient(low = "azure", high = "maroon") +
+  theme(legend.position = "top")
+```
+
+Notice how the areas defined as "urban" have changed a little bit as compared to the plot with just Mkhiweni. This is mostly because the upper bound for density and population were pushed upwards when adding the new tinkhundla.
+
+## Re-inspecting the Road Network, Health Care Facilities, and Educational Facilities
+
+Looking first at road networks in this expanded area, we begin to see a strange trend.
+
+```{r plot-expanded-roads}
+ggplot() + #plotting the different road types along with adm2/urban areas 
+  theme_bw() +
+  geom_sf(data = comb_adm2, fill = "steelblue1", alpha = 0.2, color = "black") +
+  geom_sf(data = urban_areas_exp, fill = "steelblue3", alpha = 0.2, color = "black") +
+  geom_sf(data = primary_routes_comb, color = "darkorange3", size = 1) +
+  geom_sf(data = secondary_routes_comb, color = "darkorange3", size = 0.4) +
+  geom_sf(data = tertiary_routes_comb, color = "darkorange3", size = 0.1) +
+  labs(x = "Latitude", y = "Longitude")
+```
+
+In the northwestern region of these three tinkhundla, there is a dense network of secondary and tertiary roads, but not many areas classified as urban. The strangeness only continues when adding in the population data, health care facilities, and educational facilities.
+
+```{r plot-expanded-all-elements, out.width = "90%"}
+ggplot() + #plotting everything together 
+  theme_bw() +
+  geom_sf(data = comb_adm2, fill = "grey90", alpha = 0.9) +
+  geom_sf(data = urban_areas_exp, mapping = aes(fill = log(pop20)), alpha = 0.9) +
+  geom_sf(data = primary_routes_comb, color = "darkorange3", size = 1.2) + 
+  geom_sf(data = secondary_routes_comb, color = "darkorange3", size = 0.6) +
+  geom_sf(data = tertiary_routes_comb, color = "darkorange3", size = 0.2) +
+  geom_sf(data = comb_schools, size = 1.5, shape = 12) +
+  geom_sf(data = comb_health_care, mapping = aes(color = amenity), shape = 3, size = 2.5) +
+  geom_rect(data = comb_adm2,ymin = -26.227, ymax = -26.28, xmin = 31.367, xmax = 31.45, fill = NA, color = "grey40") +
+  scale_color_manual(values = "darkolivegreen4") +
+  scale_fill_gradient(low = "azure", high = "maroon") +
+  labs(x = "Latitude", y = "Longitude", fill = "Log of Population", color = "Facility Type")
+```
+
+I find it particularly interesting that there are no health care _or_ educational facilities within _any_ of the defined urban areas. I added an area of interest, where there are three educational facilities and two health care facilities but no urban areas. 
+
+There are a number of possible issues here, none of which are mutually exclusive:
+
+* the way that I've classified roads into primary, secondary, and tertiary routes is misleading;
+* the threshold for urban areas was too high (i.e., I set the contour level too high or I filtered too aggressively based on population and density);
+* the northwestern portion here could be legitimate wilderness (which is not unthinkable given that Swaziland is an LMIC);
+* the data for health care and educational facilities is not great.
+
+It's also possible that there aren't any major issues here and that this is what it truly looks like (in which case it seems that accessibility to both health care and education are pretty abysmal).
+
+# Adding Topographic Information Into the Mix
+
+As an interesting extension, I added in topographic data. This is a good opportunity to explore the third potential issue from above, as the sparse population in the region may be correlated in some way with the topographic features. The following plot was created using the `rayshader` library with overlaid `ggplot` elements.
+
+```{r img-topo-stuff}
+include_graphics("Figures/adm2_w_topo.png")
+```
+
+Unfortunately, this doesn't seem to clear up much with regards to the low population density in the northwest region. 
+
+At this point, we have a pretty good idea of many different built and natural features within this region. While the placement of health care and educational facilities is relatively cryptic, it's worth noting that there may be additional features (built or natural) that we haven't accounted for yet that might better justify the placement of these services. 
+
+# Zipf's Law Revisited
+
+I decided to briefly look at Zipf's Law again since the scope of my analysis has grown a little. 
+
+```{r plot-zipf}
+just_pops <- tibble(pop20 = urban_areas_exp$pop20) #extracting the necessary data
+
+just_pops <- just_pops %>% #manipulating the data to visualize Zipf's law
+  arrange(desc(pop20)) %>% 
+  add_column(rank = 1:nrow(just_pops)) %>% 
+  mutate(relative_freq = pop20 / sum(pop20),
+         zipf_pred_freq = 0.1 / rank,
+         zipf_pred_count = (1 / rank) * pop20,
+         frazier_pred = (max(pop20) / rank) / sum(pop20))
+
+ggplot(just_pops, mapping = aes(x = rank)) +
+  theme_bw() +
+  geom_ribbon(mapping = aes(ymin = frazier_pred, ymax = relative_freq), fill = "grey80", alpha = 0.5) + 
+  geom_line(mapping = aes(y = frazier_pred), color = "dodgerblue", size = 1.1) +
+  geom_point(mapping = aes(y = relative_freq), size = 2, color = "maroon") +
+  labs(x = "Log of Rank", y = "Log of Relative Frequency") +
+  scale_x_log10(breaks = 1:nrow(just_pops)) +
+  scale_y_log10() +
+  theme(panel.grid.minor = element_blank())
+```
+
+Again, we can see that the power law approximation is relatively good, although there is a bit of a departure in the last few data points. Basically, our urban areas represent a more extreme distribution: a higher portion of the population lives in the most populous regions, leaving less individuals in the less populous regions than we might expect.
+
+

@@ -1,0 +1,158 @@
+---
+title: "Getting Started with R"
+author: "Emilio Luz-Ricca"
+output: 
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+---------
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(knitr)
+
+knitr::opts_chunk$set(fig.align = "center", warning = FALSE, message = FALSE)
+```
+
+
+# Producing Basic Plots with Base R
+
+## Basic Operations
+
+In the first part of this assignment, I use base R to produce a few simple plots.
+
+First, I create two numeric vectors (`x` and `y`) and plot them against each other.
+
+```{r create-vectors}
+x <- 1:10
+y <- 10:1
+
+plot(x, y)
+```
+
+This plot is made much more interesting by adding additional features (i.e., title, x- and y-labels, etc.).
+
+```{r plot-vectors}
+plot(x, y, type = "b", main = "The Path of a Running Person", xlab = "Longitude", ylab = "Latitude",
+     col = "maroon", pch = 3)
+```
+
+## Using a Data Frame
+
+Now, I store the vectors in a `data.frame` object and add additional features to the plot with the `symbols` function. The idea is to use a toy dataset to demonstrate a person's path between homes in a community.
+
+```{r path-plot}
+loc_data <- data.frame(id = 1:10,
+                       east = sample(1:100, 10, replace = TRUE), 
+                       north = sample(1:100, 10, replace = TRUE))
+
+symbols(loc_data$east, #adding in the squares (the homes)
+        loc_data$north, 
+        squares = rep(0.75, 10), 
+        inches = FALSE,
+        xlab = "East",
+        ylab = "North")
+
+symbols(sample(1:100, 10, replace = TRUE), #adding circles (trees..?) 
+        sample(1:100, 10, replace = TRUE), 
+        circles = rep(1, 10),
+        inches = FALSE,
+        fg = "darkgreen",
+        add = TRUE)
+
+symbols(sample(1:100, 10, replace = TRUE), #adding circles (trees..?) 
+        sample(1:100, 10, replace = TRUE),
+        circles = rep(1.5, 10),
+        inches = FALSE,
+        fg = "lightgreen",
+        bg = "beige",
+        add = TRUE)
+
+to_visit <- sample(1:10, 3) #picking out the squares to visit
+
+xspline(loc_data[to_visit, 2], #adding a path between the selected homes
+        loc_data[to_visit, 3], 
+        lty = 3,
+        lwd = 0.75,
+        shape = -1)
+
+text(loc_data[to_visit, 2], #labeling the visited homes
+     loc_data[to_visit, 3] + 4,
+     labels = loc_data[to_visit, 1])
+
+title(main = "A Person's Path Between Homes") #adding a title to the plot
+```
+
+## Challenge Question
+
+The code for the challenge question is very similar to the previous plot, just with more data points and a more complicated path (again using `xspline`). I don't include the code for this plot as it would be repetitive. This plot is a little messy, but still somewhat readable.
+
+```{r challenge-plot-base, echo = FALSE, out.width = "90%"}
+loc_data <- data.frame(id = 1:50,
+                       east = sample(1:1000, 50, replace = TRUE), 
+                       north = sample(1:1000, 50, replace = TRUE))
+
+symbols(loc_data$east, #adding in the squares (the homes)
+        loc_data$north, 
+        squares = rep(7, 50), 
+        inches = FALSE,
+        xlab = "East",
+        ylab = "North")
+
+symbols(sample(1:1000, 40, replace = TRUE), #adding circles (trees..?) 
+        sample(1:1000, 40, replace = TRUE), 
+        circles = rep(10, 40),
+        inches = FALSE,
+        fg = "darkgreen",
+        add = TRUE)
+
+symbols(sample(1:1000, 12, replace = TRUE), #adding circles (trees..?) 
+        sample(1:1000, 12, replace = TRUE), 
+        circles = rep(15, 12),
+        inches = FALSE,
+        fg = "lightgreen",
+        bg = "beige",
+        add = TRUE)
+
+to_visit <- sample(loc_data$id, 7) #picking out the squares to visit
+
+xspline(loc_data[to_visit, 2], #adding a path between the selected homes
+        loc_data[to_visit, 3], 
+        lty = 3,
+        lwd = 0.75,
+        shape = -1)
+
+text(loc_data[to_visit, 2], #labeling the visited homes
+     loc_data[to_visit, 3] + 25,
+     labels = loc_data[to_visit, 1], 
+     cex = 0.9)
+
+title(main = "A Person's Path Between Homes") #adding a title to the plot
+```
+
+# Using Tidyverse and ggplot
+
+## Reproducing the Challenge Plot
+
+Now, I use ggplot to reproduce the challenge plot. I unfortunately couldn't figure out how to add the same shaped `xspline` to the plot, but otherwise it looks pretty similar!
+
+```{r challenge-plot-ggplot, out.width = "80%"}
+extra_points <- tibble(east = sample(1:1000, 52, replace = TRUE), #the points for the trees
+                       north = sample(1:1000, 52, replace = TRUE))
+
+for_labels <- loc_data[to_visit, ]
+
+ggplot(loc_data, aes(x = east, y = north)) +
+  theme_bw() +
+  geom_point(shape = 0) + #adding the houses
+  geom_point(data = extra_points[1:40, ], mapping = aes(x = east, y = north),
+             size = 3.5, pch = 21, color = "darkgreen") + #adding the small trees
+  geom_point(data = extra_points[41:52, ], mapping = aes(x = east, y = north),
+             size = 5, pch = 21, color = "lightgreen", fill = "beige") + #adding the big trees
+  geom_text(data = for_labels, mapping = aes(x = east, y = north, label = id), nudge_y = 30, fontface = "bold") +
+  geom_line(data = loc_data %>% filter(id %in% to_visit), linetype = "dashed") + #visiting the desired houses
+  labs(title = "A Person's Path Between Homes") + #adding a title
+  theme(plot.title = element_text(hjust = 0.5)) #centering the title
+```

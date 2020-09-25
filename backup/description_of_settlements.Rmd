@@ -1,0 +1,141 @@
+---
+title: "Description of De Facto Settlements"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+<!--if you are EVER going to do stuff with sf objects, import the library--otherwise, things will break!!!-->
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(raster)
+library(spatstat)
+library(maptools)
+library(ggrepel)
+library(units)
+library(knitr)
+
+load("population_with_sf.Rdata")
+load("for_desc_of_settle.RData")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
+```
+
+# Choosing an Administrative Subdivision
+
+The first time I attempted this exercise, I tried to use the region **Manzini** for my analysis. Unfortunately, I got stuck on the bandwidth calculation (`bw.ppl()` from) for the spatial probability distribution function (I let it run for more than an hour and a half before interrupting the process). Manzini has a relatively large population ($\approx$ `r swz_adm1 %>% filter(NAME_1 == "Manzini") %>% .[[ncol(swz_adm1)]] %>% floor() %>% format(scientific = FALSE)`) and is somewhat large in area ($\approx$ `r swz_adm1 %>% filter(NAME_1 == "Manzini") %>% st_area() %>% set_units("km^2") %>% as.numeric() %>% round(2)` km^2^), which may be the reason that this computation was taking so long.
+
+So, I decided to switch away from Manzini towards a smaller, less populous area. I settled on the tinkhundla **Mkhiweni** (population $\approx$ `r swz_adm2 %>% filter(NAME_2 == "Mkhiweni") %>% .[[ncol(swz_adm2)]] %>% floor() %>% format(scientific = FALSE)`, area $\approx$ `r swz_adm2 %>% filter(NAME_2 == "Mkhiweni") %>% st_area() %>% set_units("km^2") %>% as.numeric() %>% round(2)` km^2^), which is actually in the Manzini district.
+
+# Subsetting the Raster and Producing a PPP
+
+Once I had decided on using Mkhiweni, things went much more smoothly. I was able to `crop` and `mask` my population raster quite easily.
+
+```{r mk-raster-and-sf}
+include_graphics("Figures/mkhiweni_pop20.png")
+```
+
+Next, I worked towards producing a planar point pattern (PPP) for Mkhiweni. Here, I distributed a number of points equal to Mkhiweni's approximate population based off of the original raster using `spatstat::rpoint()`.
+
+```{r mk-ppp}
+include_graphics("Figures/mk_ppp.png")
+```
+
+# Extracting the Probability Density Function and Addding a Contour Line
+
+Having been able to actually compute the bandwidth for the spatial probability density function (PDF), I created a density plot. The PDF is based off of the PPP. 
+
+```{r mk-density}
+include_graphics("Figures/mk_density.png")
+```
+
+Using a somewhat arbitrary cutoff, I defined a contour line that aims to separate the densely-populated from the sparsely-populated areas. Adding this contour line to the density plot begins to reveal the goal for this exercise: extracting the polygons that define the populous areas within Mkhiweni.
+
+```{r mk-density-w-contour}
+include_graphics("Figures/mk_density_w_contour.png")
+```
+
+# Extracting the Polygons that Define the De Facto Settlements
+
+Extracting the inner polygons was  easily done using `sf::st_polygonize()`. After a little bit of fighting with R, I was finally able to cut out the outer polygons (those that are on Mkhiweni's border).
+
+```{r mk-cut-up}
+include_graphics("Figures/mk_cut_up_polys.png")
+```
+
+Switching to 100 meter rather thank 1 kilometer resolution for the raster data was eventually what made this step work correctly, which is good to know for the future.
+
+# Filtering and Cleaning the Extracted Polygons
+
+Next, I cleaned up both the interior polygons and the polygons on the administrative boundary. This was mostly done by inspection and with frequent comparison with the polygons produced by the contour lines earlier in the exercise. This was certainly a somewhat subjective process. Operationalizing this step would improve reproducibility and transparency. In the following plot, the light blue lines indicate interior polygons and light green lines indicate polygons on the boundary (the difference in colors is a little subtle).
+
+```{r mk-filtered-polys}
+include_graphics("Figures/mk_filter_polys.png")
+```
+
+Then, I combined all of the polygons using `sf::st_union()` and kept only the unique polygons.
+
+# Extracting Population and Final Visualization
+
+To finish off, I extracted the population for each polygon using `raster::extract()`. Finally, I put together a few visualizations with `ggplot` to show off the finalized set of polygons, along with the population (the `fill` aesthetic) and population density for each polygon (the number associated with each polygon). I take the natural logarithm of population here because there's quite a range of total populations between polygons (the largest polygon has a population of `r max(urban_areas$pop20) %>% floor() %>% format(scientific = FALSE)` and the smallest has `r min(urban_areas$pop20) %>% floor()` people).
+
+```{r plot-final-viz, out.width = "90%"}
+ggplot() +
+  theme_bw() +
+  geom_sf(data = swz_mk, fill = "grey80", color = "black", alpha = 0.7) +
+  geom_sf(data = urban_areas, mapping = aes(fill = log(pop20))) +
+  geom_text_repel(data = urban_areas, mapping = aes(label = round(density, 2), geometry = geometry), 
+                  stat = "sf_coordinates", size = 3, min.segment.length = 0, fontface = "bold") +
+  labs(y = "Longitude", x = "Latitude", fill = "Log of Population") +
+  scale_fill_gradient(low = "azure", high = "maroon") +
+  theme(legend.position = "top")
+```
+
+I used `ggrepel` here with `stat = "sf_coordinates"`, which nudges each density count off of the polygon so that you can see the fill color. It's a little clunky, but it gets the job done.
+
+# A Challenge: Zipf's Law
+
+Looking at the limited data that we've produced here of de facto settlements in Mkhiweni, we can see that our population distribution actually follows a power distribution. This loosely follows Zipf's Law, which is pretty cool! In the next plot, I have the prediction from Zipf's Law in blue and the actual data points in red.
+
+```{r plot-zipf}
+just_pops <- tibble(pop20 = urban_areas$pop20) #extracting the necessary data
+
+just_pops <- just_pops %>% #manipulating the data to visualize Zipf's law
+  arrange(desc(pop20)) %>% 
+  add_column(rank = 1:nrow(just_pops)) %>% 
+  mutate(relative_freq = pop20 / sum(pop20),
+         zipf_pred_freq = 0.1 / rank,
+         zipf_pred_count = (1 / rank) * pop20,
+         frazier_pred = (max(pop20) / rank) / sum(pop20))
+
+#just showing normal frequency
+ggplot(just_pops, mapping = aes(x = rank)) + #plotting the data... look's approximately Zipfian
+  theme_bw() +
+  geom_line(mapping = aes(y = frazier_pred), color = "dodgerblue", size = 1.1) +
+  geom_point(mapping = aes(y = relative_freq), size = 2, color = "maroon") +
+  scale_x_continuous(breaks = 1:nrow(just_pops)) +
+  labs(x = "Rank", y = "Relative Frequency") +
+  theme(panel.grid.minor = element_blank())
+```
+
+To emphasize the difference between the expected (as dictated by Zipf's Law) and actual outcomes, I put both axes on logarithmic scales using `ggplot2::scale_*_log10()` to linearize the power law lines.
+
+```{r plot-zipf-pred}
+#with log axes
+ggplot(just_pops, mapping = aes(x = rank)) +
+  theme_bw() +
+  geom_ribbon(mapping = aes(ymin = frazier_pred, ymax = relative_freq), fill = "grey80", alpha = 0.5) + 
+  geom_line(mapping = aes(y = frazier_pred), color = "dodgerblue", size = 1.1) +
+  # geom_line(mapping = aes(y = relative_freq), color = "maroon", size = 1.1) +
+  geom_point(mapping = aes(y = relative_freq), size = 2, color = "maroon") +
+  labs(x = "Log of Rank", y = "Log of Relative Frequency") +
+  scale_x_log10(breaks = 1:nrow(just_pops)) +
+  scale_y_log10() +
+  theme(panel.grid.minor = element_blank())
+```
+
+It looks like a relatively good fit, although our actual distribution is more extreme than Zipf's Law would predict.
+
+

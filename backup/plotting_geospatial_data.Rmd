@@ -1,0 +1,69 @@
+---
+title: "Plotting Geospatial Data"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+---
+
+<!--LESSON: bringing in the plots using sourcing is just a little clunky, probably better to do all plotting in RMD and leave sourcing for data and functions (or maybe "save()" for data)-->
+
+<!--VERY USEFUL FUNCTION: knitr::combine_words() makes lists like "apple, pear, and orange"-->
+
+```{r setup, include = FALSE}
+source("swaziland_basic_plots.R")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center")
+```
+
+# Bringing in the Data and Basic Plotting
+
+For this exercise, I decided to use Swaziland (now called Eswatini). I downloaded the geometry data as outlined in the instructions and brought in the data using the `read_sf()` function from the `sf` library.
+
+The first plot that I made simply includes the international boundary and first level administrative boundaries, using the `geom_sf()` and `goem_sf_text()` functions from `ggplot`.
+
+```{r plot-basic-swz, out.width = "70%", echo = FALSE}
+p_intl_adm1 +
+  labs(x = "Latitude", y = "Longitude")
+```
+
+This is a nice plot, but is a bit basic on it's own. To convey more information, I added the second level administrative boundaries.
+
+```{r plot-adm2-swz, out.width = "70%", echo = FALSE}
+p_adm1_adm2 +
+  labs(x = "Latitude", y = "Longitude")
+```
+
+Bringing in second level administrative boundaries clutters up the plot a bit, but it's still legible. To ensure that smaller features were less prominent, I decreased the `size` argument and moved along a greyscale for `color` in the `geom_sf_text()` and `geom_sf()` functions. This makes the plot much more readable.
+
+# Stretch Goals
+
+In this section, I include the results from a few of the stretch goals in the first part of this exercise (titled _Individual Stretch Goal 2_ and _Individual Stretch Goal 3_).
+
+## Looking at the Most Populous Region
+
+After a little searching, I learned that Eswatini is divided into four **regions** (`r knitr::combine_words(swz_adm1 %>% .$NAME_1)`) and each region is further divided into many **tinkhundla** (their second level of administrative subdivision). For instance, the region Hhohho is split into the tinkhundla `r knitr::combine_words(swz_adm2 %>% filter(NAME_1 == "Hhohho") %>% .$NAME_2)`.
+
+The most populous region in Eswatini is Manzini, which is comprised of `r swz_adm2 %>% filter(NAME_1 == "Manzini") %>% .$NAME_2 %>% length()` tinkhundla. Here's a plot of Manzini on it's own.
+
+```{r plot-just-manzini, echo = FALSE}
+p_just_manzini +
+  labs(title = NULL, subtitle = NULL, x = "Latitude", y = "Longitude")
+```
+
+## Arranging Plots
+
+Finally, I put a few plots together on the same axes. The idea here was to identify a couple of different areas on the country map and then to zoom in on those areas of interest.
+
+```{r plot-arranged, echo = FALSE}
+p_arranged
+```
+
+This is really a nice plot. I especially had fun fiddling with the different axis elements (i.e., `panel.border`, `panel.background`, `axis.ticks`, etc.) to make the plot more clear. The one issue is that the labels in the Manzini plot overlap, making it a little hard to read.
+
+
+
+
+
+
+
