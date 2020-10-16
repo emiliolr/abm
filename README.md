@@ -15,3 +15,4 @@
 7. [Data Science Insight 1](DS_insight_1.html) - a brief introduction to the Tidyverts, a meta package used for time series analysis and forecasting in R.
 8. [Project 1](project_1.html) - a write up that summarizes elements from the previous few exercises, providing additional analysis along the way.
 9. [Project 2 Outline](project_2_outline.html) - a short summary of my plans for Project 2.
+10. [Data Science Insight 2](DS_insight_2.html) - a quick look at innovations in Twitter geolocation using CNNs.
