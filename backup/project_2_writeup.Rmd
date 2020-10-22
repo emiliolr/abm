@@ -1,0 +1,96 @@
+---
+title: "Project 2: Creating a Synthetic Population of Eswatini"
+author: Emilio Luz-Ricca
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    highlights: pygments
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(raster)
+library(haven)
+library(knitr)
+
+load("Data/DHS_simple_location.RData")
+load("Data/gps_for_p2_deliverable.RData")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
+```
+
+<!--
+TODO: 
+  -read through and make sure everything makes sense
+  -make sure you have everything that he wants (class site)
+-->
+
+# Brief Outline
+
+In this project, I focused on putting together a synthetic population of Eswatini. The goal was to eventually apply a multinomial logistic regression to predict a number of different variables. I used DHS household survey data from 2006 as the base data.
+
+# Acquiring, Reading, and Wrangling the Data
+
+Acquiring the data from DHS was actually relatively easy, only requiring a few pieces of writing to justify the use of the household survey data and the GPS data. I cover this step in more detail in my [previous deliverable](https://emiliolr.github.io/abm/project_2_outline.html). 
+
+After getting the data, I read it in with `haven` and began to explore the data. The data set includes a total of 4843 households. Pulling out the desired variables with `dplyr::select()` was pretty easy, although some work was required to find the right variables from the more than 4000 variables in the data set (it didn't help that there was no .do file to work with). In the end, I grabbed out the variables for number of household members, the sex of members, the age of members, the region identifier (first level administrative subdivisions), and the sample weights (the data is not self-weighting for extrapolation to the national level).
+
+# Assigning Locations to the Households
+
+Assigning feasible locations to each household would have been more important in a more detailed analysis, but, since I had time, I completed this step anyway. In the end, I used two methods here, one less precise and one a little more precise. The less precise method used the underlying population density (extracted from a 2006 population raster) as a basic for several `spatstat::rpoint()` commands (one or each region in Eswatini). Then, it was easy to join these feasible locations (accurate to the region-level) back to the original data. The following plot shows the result, with points colored by the region that they should have ended up in to ensure that each point found it's way to a house in the correct region.
+
+```{r basic-dist-plot}
+swz_adm1 <- read_sf("Data/gadm36_SWZ_shp/gadm36_SWZ_1.shp")
+
+ggplot() + #checking out the results of household dist
+  theme_bw() +
+  geom_sf(data = swz_adm1, color = "black") +
+  geom_sf(data = houses_sf, mapping = aes(color = as_factor(hv024)), size = 0.2) + #add color to points to check
+  geom_sf(data = swz_adm1, color = "black", alpha = 0) + #adding boundaries again - looks cleaner
+  geom_sf_text(data = swz_adm1, mapping = aes(label = NAME_1), size = 6, alpha = 0.6) +
+  scale_color_brewer(palette = "BrBG") +
+  labs(color = "Region", x = "Latitude", y = "Longitude") +
+  guides(color = guide_legend(override.aes = list(size = 2))) #changing the size of the legend dots to make more readable
+```
+
+Since I had received the GPS data from DHS as well, I also worked on the stretch goal of placing each household in its correct cluster. This required considerably more work than the previous method, mostly using a number of different operations from the `sf` library. Clusters were identified by their center point in the data set and points were distributed in either a 2, 5, or 10 kilometer radius depending on if the cluster was urban or rural (a 1% random sample of the rural clusters were distributed in a 10 kilometer radius, as specified in the [DHS methods documentation](https://dhsprogram.com/pubs/pdf/SAR11/SAR11.pdf)). The following plots shows the result of this process.
+
+```{r all_pts_plot, out.width = "60%"}
+knitr::include_graphics("Figures/distributed_points.png")
+```
+
+Some clusters were missing a center point in the GPS data. For the households in these clusters, I simply distributed them across their correct regions with `rpoint()`. The following plot includes all located households, with households in clusters that are missing GPS data in red.
+
+```{r w-missing-plot}
+ggplot() + 
+  theme_bw() +
+  geom_sf(data = swz_adm1) +
+  geom_sf(data = no_loc_households, color = "maroon", size = 1, alpha = 0.8) +
+  geom_sf(data = all_pts, color = "darkolivegreen4", size = 0.7, alpha = 0.4) +
+  geom_sf(data = swz_adm1, color = "black", alpha = 0)
+```
+
+# Producing the Synthetic Population
+
+Unfortunately, I didn't have time to meaningfully use the elements from the previous steps. Instead, we made some simplifying assumptions as a class and forged ahead with synthetic population creation. Any spatial location used in the subsequent steps simply leveraged a nation-level `spatstat::rpoint()` function, which didn't respect the region-level location ID included in the DHS household survey or the GPS data for cluster centers.
+
+To fill out the population based on the limited survey observations, I resampled with replacement from the survey to create approximately as many households as are expected to have existed in Eswatini during the time of the survey (around 220000). A crucial decision here was to stay at the national level for all elements of synthetic population generation before narrowing in on a selected first or second-level administrative area. This seemed like a reasonable decision given initial results seen in class, which showed greater error when proceeding at the spatially more restricted range. Next, I pivoted out the sex, age, and education level variables from the resampled household set to create a filled out population of "shell" individuals. I use the word shell here because they aren't really unique individuals yet; they're just repetitions of the same individuals resampled from the survey. 
+
+I was able to check basic error in the procedure here along two axes: deviation from true population total and error caused by ignoring the weights. In both cases, error was quite small: $\approx$ 0.65% deviation from the population total and $\approx$ 3.42% error from ignoring the weights. This is pretty good, but certainly an area for improvement in a more refined analysis; integrating the sample weights into the analysis certainly would help a lot. Additionally, using the location data from the previous step would likely help further improve the quality of the final synthetic population.
+
+<!--TODO: update this paragraph after fixing ML stuff-->
+There was a small amount of missing data in the final data set, so I used a random forest approach to impute the missing data (using the `missForest`) before modeling. To begin to introduce some true heterogeneity, I applied a multinomial logistic regression to the data using the `nnet` library to predict the education level variable. Using the pivoted education level variable, I was able to check the accuracy of the model, which was quite low (about 43% accuracy). To try to improve classification performance, I applied a random forest model and an additional multinomial logistic regression using the `tidymodels` package. Before fitting the models, I normalized the predictor variables (`age`, `sex`, and `hv009`, which is household size). Then, I trained both of the models and predicted on the test set. The random forest model achieved slightly higher accuracy than the initial multinomial logistic regression (about 61% accuracy). The second multinomial logistic regression used `nnet` as the engine, so the accuracy was very similar, as expected (this was more an exercise in using `tidymodels` than anything else). 
+
+# Results
+
+<!--TODO: answer the last bullet here... we do better in approximating the dist than a uniform dist even though we apply a lot of simplifying assumptions (comparing to randomly distributed in location and demographics... make some plots)-->
+
+As discussed in class, spatial and demographic accuracy for this synthetic population is on a spectrum. On one end, household locations are distributed randomly and demographic features are generated at random (or perhaps drawn of a normal distribution); on the other end, a population-wide census ensures data that is spatially and demographically as accurate as possible (allowing for nominal error due to inaccurate reporting or other factors). While the method used here certainly doesn't approach the accuracy of a census, I argue in this section that our final synthetic population and accompanying random forest model, which could be extended to fold in more variables, does a "pretty good" job at approximating spatial and demographic features in the _aggregate_.
+
+<!--TODO: include density plots here showing that the dists match pretty well-->
+
+# Sharing the Scripts
+
+Since there weren't a huge amount of resources out there for assigning the households locations based on the GPS data, I'm including a link to my solution.
+

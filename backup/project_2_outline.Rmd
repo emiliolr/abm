@@ -1,0 +1,67 @@
+---
+title: "Basic Outline for Project 2"
+author: "Emilio Luz-Ricca"
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    highlight: pygments
+---
+
+```{r setup, include = FALSE}
+library(sf)
+library(tidyverse)
+```
+
+
+# Requesting the DHS Data
+
+For accessing and downloading the Demographic and Health Survey (DHS) data in preparation for Project 2, I had to write a short outline for the project. This is what I included in my proposal:
+
+> I am in an Agent Based Modeling course at William & Mary, where I am
+constructing a model of Eswatini. This data will be used to produce a synthetic
+population of Eswatini as a preliminary step. Using results from this model, I
+will describe land use and health care demand, as well as describe movement within
+Eswatini.
+
+I also requested the GPS data from the DHS website. This was my short justification for requesting this additional data:
+
+> In addition to generating a synthetic population, I hope to produce accurate geographic population models for Eswatini. This data set would help improve accuracy over a model based solely on survey data.
+
+I'm very excited to start working with this data! I think there will be some interesting things to explore in terms of demand for different infrastructure elements. Additionally, in Project 1 I saw some very strange trends in terms of the placement of health care facilities. I'm hoping to investigate this further, ideally with putting together some quantitative measure of physical accessibility to health care.
+
+# Basic Work with the Data
+
+DHS approved both data sources pretty quick! When initially opening the household data, I was pretty taken aback by the _ultra_-wide format (more than 4000 columns). Unfortunately, the data didn't come along with a Stata _.do_ file, so it was a little more difficult to locate the variables of interest.
+
+Here's what I was able to find:
+
+* The number of household members is in `hv009`.
+* The sex of household members is in `hv104_01` to `hv104_34`.
+* The age of household members is in `hv105_01` to `hv105_34`.
+* The region identifier (first-level administrative subdivisions) is in `hv_024`.
+* I have yet to find an identifier for tinkhundla (second-level administrative subdivisions), which makes it a little more difficult to spatially locate the households of interest.
+* Sample weights are in `hv005`.
+
+I also downloaded 2006 population raster data from WorldPop to match up with the survey, which was conducted in 2006.
+
+# A Quick Plot
+
+I quickly plotted the geospatial data to see the distribution of clusters across Eswatini. There are 275 total clusters, and I've seperated urban and rural clusters by color.
+
+```{r, out.width = "75%", echo = FALSE, fig.align = "center"}
+dhs_spatial <- read_sf("Data/swz_DHS_spatial/SZGE53FL.shp") #reading in the DHS shape file
+swz_adm2 <- read_sf("Data/gadm36_SWZ_shp/gadm36_SWZ_2.shp")
+
+dhs_spatial %>% 
+  filter(LATNUM != 0 & LONGNUM != 0) %>%
+  mutate(URBAN_RURA = fct_recode(URBAN_RURA, urban = "U", rural = "R")) %>%
+  ggplot() +
+  theme_bw() +
+  geom_sf(mapping = aes(color = URBAN_RURA), size = 0.2) +
+  geom_sf(data = swz_adm2, fill = NA) +
+  labs(color = "Location")
+```
+
+Even though I wasn't able to find a more granular location identifier, I should be able to figure out which clusters are in Mkhiweni using this data and filter those out of the survey data!
+

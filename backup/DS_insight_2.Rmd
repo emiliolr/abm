@@ -1,0 +1,58 @@
+---
+title: "Data Science Insight 2: Geolocating Tweets"
+author: Emilio Luz-Ricca
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    highlights: pygments
+---
+
+<!--
+TODO: 
+  - add in some figures to accompany writing
+  - read through to make sure it all makes sense
+-->
+
+```{r, include = FALSE}
+library(knitr)
+```
+
+# Introduction
+
+Geolocation of text data is a problem generally of interest in natural language processing (NLP). If we were dealing with experimental or survey data, then it would be relatively easy to include location as a variable in the analysis. However, by definition, NLP deals with observational data--text data in the wild, as it were. So, without precise metadata, different approaches must be used to determine the location of the author of a text (generally, their "primary" location or place of posting). 
+
+This is where geolocation techniques come in. The literature focuses heavily on geolocating social media posts, Twitter in particular for its freely accessible API. For this insight I looked at a few articles that approach the geolocation of tweets: a 2016 Shared Task (a good overview of potential approaches) and another from 2019 that shifts the problem statement slightly, achieving impressive results. I'll go over these articles, looking first at the general methods, and then I'll critique the articles and discuss the applications of these techniques.
+
+# General Techniques
+
+The 2016 Association for Computational Liguistics (ACL) Workshop on Noisy User-generated Text (WNUT) Shared Task on twitter geolocation summarizes the problem statement well and includes several unique, state of the art approaches. Often, spatially partitioning text data is of interest but the low rate of Twitter-native geotagging (only about 0.85% of tweets) motivates the use of alternate methods for geolocation. 
+
+It is common to treat geolocation as a multi-class classification problem (assigning the city, state, etc. of origin), which was the specified approach for the shared task. Additionally, one can attempt to classify at the tweet-level or more broadly on the user-level; since the latter allows for more data per observation, it is a popular approach in the literature. For validation, accuracy is generally too harsh a measure. Instead, metrics such as mean or median error distance, the distance between predicted and true locations, are used as softer, but still valuable, metrics. 
+
+Many different techniques were used in the shared task (i.e., neural networks, ensemble methods, multinomial naive Bayes), but in general, those that leveraged additional metadata beyond just the tweet text found success and were robust across tweet- and user-level tasks. Additionally, performance improved uniformly across approaches when testing on post-2016 tweets, implying a potential shift towards sharing location information for Twitter users in general. 
+
+# Innovations
+
+The second article that I read focused on geolocating tweets to different landmarks, which differs slightly from the classic problem statement. To do this, the authors use the text and other metadata as inputs to a convolutional neural network (CNN). One of the key intuitions here is that the timing of post likely holds a lot of predictive power over the potential landmark of posting. 
+
+The architecture of the network is relatively simple, running a number of convolution operations with varying filter sizes over the word-vector representation of the tweet to extract important features. Then, these features are concatenated with one-hot encodings of the different included metadata and sent along to a fully-connected layer for classification. In the end, the authors show the superiority of this approach against existing state of the art approaches (i.e., multinomial naive Bayes, other neural network based methods), although it's worth keeping in mind that the difficulty of the task (even with the simplifications already imposed) means that accuracy is generally quite low (somewhere around 40-50% accuracy for state of the art approaches).
+
+```{r, echo = FALSE, out.width = "60%", fig.align = "center", fig.cap = "Figure: the model architecture with inputs and outputs, taken directly from the paper (see final section for link)."}
+knitr::include_graphics("Misc/model_architecture.png")
+```
+
+While this is an interesting article and a novel approach, I have a few critiques. In particular, by fundamentally changing the problem statement, it seems to me that the authors have inflated the performance of their own method by comparing to methods that were designed for a more classic geolocation problem specification (something more similar to the 2016 Shared Task). In the same vein, I'd be interested to see how this approach fairs in a more classic geolocation setting. Also, only tweets geotagged (by Twitter--there's a subtle difference between geolocate and geotagged) from Melbourne were used in the testing portion, which brings into question the robustness of the method. If a wider variety of landmarks were used on an international scale, introducing significantly more heterogeneity into the training/testing data, would this method still perform well? Regardless, this is a very interesting method that shows promise and I'm looking forward to seeing how this approach is improved upon in the future. 
+
+# Applications and Limitations
+
+The most immediate application of geolocation to me, which is also often cited in the literature, is to crisis management: if individuals begin tweeting about a developing crisis, being able to extract location without having to depend on inconsistent Twitter geotagging would be incredibly powerful. The field of crisis informatics employs computational  techniques (especially NLP) and principles of human-computer interaction to manage crises (natural disasters in particular). If we could automatically infer the general location of a crisis, we would be able to allocate resources more efficiently and effectively. However, as is probably clear, geolocation is relatively limited at the moment because of data inaccessibility; Twitter is almost always used because of its accessible API, but the techniques would need to be expanded past Twitter to be truly applicable. 
+
+In general, the limitations of the methods here reflect issues with applying NLP to noisy user-generated text (NUT) data: researchers usually use Twitter because of data accessibility, but methods must be robust to non-Twitter text data. Because a lot of these NLP methods depend on machine learning techniques, the performance of the method is very closely associated with the amount of useful data that we can collect for training and testing. Ideally, other social network sites would provide a similar API to Twitter. However, since this is unlikely to happen, more work is still needed to produce truly robust, widely-applicable tools.
+
+# Articles Referenced
+
+- [The CNN approach to geolocation of tweets.](https://dl.acm.org/doi/pdf/10.1145/3308557.3308691)
+- [The ACL WNUT 2016 shared task.](https://www.aclweb.org/anthology/W16-3928.pdf)
+- [Another aticle that I didn't have time to read but that looks very interesting.](https://dl.acm.org/doi/10.1145/3178112)
+
