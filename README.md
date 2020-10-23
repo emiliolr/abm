@@ -16,3 +16,4 @@
 8. [Project 1](project_1.html) - a write up that summarizes elements from the previous few exercises, providing additional analysis along the way.
 9. [Project 2 Outline](project_2_outline.html) - a short summary of my plans for Project 2.
 10. [Data Science Insight 2](DS_insight_2.html) - a quick look at innovations in Twitter geolocation using CNNs.
+11. [Project 2](project_2.html) - a write up discussing the methods that were applied in Project 2 to produce a synthetic population for Eswatini.
