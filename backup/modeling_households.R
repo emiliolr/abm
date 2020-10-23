@@ -61,6 +61,7 @@ dhs_spatial %>%
 dhs_desired_vars <- dhs_household %>% 
   dplyr::select(hhid, hv005, hv009, hv024, hv104_01:hv104_34, hv105_01:hv105_34, hv106_01:hv106_34) %>% 
   mutate(hv005 = hv005 / 10e5)
+save(dhs_desired_vars, file = "DHS_desired_vars.RData")
 
 #Distributing points across swz - full population
 pop_2006 <- swz_pop_2006 %>% cellStats("sum")
@@ -216,7 +217,8 @@ imputed_vars <- shell_data_imputed$ximp %>% as.data.frame()
 
 ind_shell_data_final <- ind_shell_data %>% #binding back onto original
   dplyr::select(-c(age, sex, educ_lvl)) %>% 
-  bind_cols(imputed_vars)
+  bind_cols(imputed_vars) %>% 
+  mutate(educ_lvl = round(educ_lvl), age = round(age))
 st_geometry(ind_shell_data_final) <- ind_shell_data_final$geometry
 save(ind_shell_data_final, file = "swz_shell_data.RData") #saving the data
 
@@ -238,4 +240,18 @@ test$educ_lvl.pred <- predict(multinomial_model, newdata = test, "class")
 #  accuracy of the model
 sum(test$educ_lvl.pred == test$educ_lvl) / nrow(test)
 
+#Producing some quick plots for the write up
+#  a uniform dist of houses - "st_sample()"?
+swz_uniform <- st_sample(swz_adm1, 10e4)
+
+png("Figures/houses_uniform_dist.png", width = 800, height = 800)
+plot(swz_uniform, cex = 0.008)
+plot(st_geometry(swz_adm1), add = TRUE)
+dev.off()
+
+#  our dist of houses
+png("Figures/shell_data_dist.png", width = 800, height = 800)
+plot(st_geometry(ind_shell_data_final), cex = 0.008)
+plot(st_geometry(swz_adm1), add = TRUE)
+dev.off()
 

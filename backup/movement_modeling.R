@@ -33,7 +33,7 @@ ggplot() + #checking that centroids were computed correctly
 #Putting together voronoi tessellations
 mk_bb <- st_bbox(swz_mk) %>% st_as_sfc() #getting bounding box and turning into a poly
 
-ggplot() +
+ggplot() + #seeing bbox
   geom_sf(data = mk_bb) +
   geom_sf(data = swz_mk)
 
