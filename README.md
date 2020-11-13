@@ -18,3 +18,4 @@
 10. [Data Science Insight 2](DS_insight_2.html) - a quick look at innovations in Twitter geolocation using CNNs.
 11. [Project 2](project_2_writeup.html) - a write up discussing the methods that were applied to produce a synthetic population for Eswatini.
 12. [Data Science Insight 3](DS_insight_3.html) - a whirlwind tour of GANs, several miscellaneous applications, and advances in applications to geospatial analysis.
+13. [Data Science Knowledge Creation](DS_knowledge_creation.html) - a reflection on the themes from this course.
