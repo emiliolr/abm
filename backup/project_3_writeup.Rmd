@@ -1,0 +1,95 @@
+---
+title: "Project 3: Predicting Movement in Eswatini with a Gravity Model"
+author: Emilio Luz-Ricca
+output:
+  html_document:
+    toc: true
+    number_sections: true
+    highlights: pygments
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(sf)
+library(raster)
+library(knitr)
+
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "50%")
+```
+
+# Outline 
+
+In this project, I used first level administrative subdivision movement data to produce a national-level gravity model for internal migration flows in Eswatini. Then, I used this model to predict movement flows between urban areas for my selected region, Mkhiweni. I also created a number of animations to visualize predicted movement, both at the national level and within Mkhiweni.
+
+# Working with Movement Data
+
+[WorldPop](https://www.worldpop.org/) has curated a variety of data for many low and middle income countries (LMICs). For this project, I used [district-level movement data](https://www.worldpop.org/geodata/summary?id=1281) for Eswatini as the basis for my gravity model. This data was produced by applying a gravity type spatial interaction model to World Health Organization data for sub-national movement from 2015. Movement is at a five year temporal resolution for this data set.
+
+<!--
+TODO: 
+  -include plots that show in-out migration for each centroid
+  -move animations to this section as a more appealing way of looking at movement
+-->
+
+## Animating Movement
+
+I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple a1nimation where only one person moved from the centroid of Hhhohho to the centroid of Lubombo. 
+
+```{r basic-move-anim}
+knitr::include_graphics("Figures/moving_person.gif")
+```
+
+Then, I worked adding more people and varying the movement speeds. Having variable movement speeds wasn't really necessary for the final product, but it was a good exercise in working with `gganimate`.
+
+```{r 2nd-move-anim}
+knitr::include_graphics("Figures/moving_many_people.gif")
+```
+
+Next, I had people move to/from all centroids.
+
+```{r 3rd-move-anim}
+knitr::include_graphics("Figures/moving_people_all_districts.gif")
+```
+
+And finally, I... _(something about scaling to the movement from district to district)_.
+
+# Getting Started with Gravity Models
+
+<!--
+TODO: 
+  -talk about the London vignette and include some of the results
+  -talk about the Garcia paper and the dynamics of gravity models
+    -applicability to other countries
+    -cross-temporal applicability
+-->
+
+# Producing a Gravity Model for Eswatini
+
+<!--
+TODO:
+  -talk about the wrangling procedure and show the OD matrix
+    -mention the coding for the diff adm 1s
+  -discuss the use of this OD matrix and how it leads into the estimation of a gravity model
+    -talk a little bit about diff estimation procedures (ddm/ppml)...?
+  -visually compare fitted values w/actual movement in some way
+    -see how the model improves when NTL are added
+-->
+
+# Predicting Movement Flows in Mkhiweni
+
+<!--
+TODO: 
+  -add in voronoi tessellation and short discussion of how project 1 leads into this analysis
+  -show the pred movement using the national level gravity model (visually...?)
+-->
+
+## Improving the Model
+
+<!--
+TODO:
+  -generally, talk about how we could improve the gravity model 
+    -are there issues w/using a national-level model for a smaller region... look at Garcia et al.
+    -talk about improving the temporal + spatial granularity of the gravity model
+  -look at how the animation could be improved (more visual info?)
+-->
+
