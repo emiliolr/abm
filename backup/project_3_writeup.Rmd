@@ -15,7 +15,7 @@ library(knitr)
 
 load("for_P3_writeup.RData")
 
-knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "50%")
+knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
 ```
 
 <!--TODO: maybe make presentation of tables/matrices nicer-->
@@ -34,14 +34,14 @@ After reading in the data, I spent several days exploring and visualizing the da
 kable(OD_matrix %>% mutate(origin_node = 1:4) %>% select(origin_node, everything()))
 ```
 
-Notice that the row IDs (one through four) indicate the origin district and the column IDs the destination. The coding scheme for the districts, which I will stick to throughout this write-up, is:
+Notice that the row IDs (one through four) indicate the origin district and the column IDs the destination. There are NA values along the diagonal as we are interested only in the _flows_. The coding scheme for the districts, which I will stick to throughout this write-up, is:
 
 1. Hhohho
 2. Lubombo
 3. Manzini
 4. Shiselweni
 
-I have include a visualization showing this coding scheme below, along with the centroid locations for each district.
+I have included a plot showing this coding scheme below, along with the centroid locations for each district.
 
 ```{r coding-scheme}
 worldpop_centroid_data <- read_sf("Data/SWZ_5yrs_InternalMigFlows_2010/SWZ_AdminUnit_Centroids/SWZ_AdminUnit_Centroids.shp")
@@ -61,7 +61,9 @@ In addition to the OD matrix, I created a matrix that included the distances bet
 kable(dist_matrix %>% mutate(origin_node = 1:4) %>% select(origin_node, everything()))
 ```
 
-Finally, I produced a plot showing <!--TODO: add in the souped up vertex/edges plots--> 
+Notice that this matrix is symmetric while the OD matrix is not. In the OD matrix, movement from $\text{node}_i$ to $\text{node}_j$ is not necessarily equal to movement from $\text{node}_j$ to $\text{node}_i$. However, distance between two nodes doesn't change based on which node you start from, hence the symmetric nature of the second matrix.
+
+Finally, I produced a plot visualizing the information contained in the OD matrix. <!--TODO: add in the souped up vertex/edges plots--> 
 
 <!--
 TODO: 
@@ -72,27 +74,27 @@ TODO:
 
 ## Animating Movement
 
-As an initial exercise, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple a1nimation where only one person moved from the centroid of Hhhohho to the centroid of Lubombo. 
+As an initial exercise, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple animation where only one person moved from the centroid of Hhhohho to the centroid of Lubombo. 
 
-```{r basic-move-anim}
+```{r basic-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_person.gif")
 ```
 
 Then, I worked adding more agents and varying the movement speeds. Having variable movement speeds wasn't really necessary for the final product, but it was a good exercise in working with `gganimate`.
 
-```{r 2nd-move-anim}
+```{r 2nd-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_many_people.gif")
 ```
 
 Next, I had agents move to/from all centroids.
 
-```{r 3rd-move-anim}
+```{r 3rd-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_people_all_districts.gif")
 ```
 
 And finally, I increased the number of agents moving from district to district. Unfortunately, I couldn't figure out how to do this in a robust manner, so I ended having to hard-code quite a few things. Still, as a proof of concept, this is a pretty neat animation! To produce this animation, I used `ggplot::geom_jitter()` to displace the agents and resized the number of agents proportionally to the magnitude of observed flows in the WorldPop data set (this is animation is at $\frac{1}{25}$ scale). To make the hard-coding easier, I focused on only the out-flows from Hhhohho.
 
-```{r 4th-move-anim}
+```{r 4th-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_people_lots_of_people.gif")
 ```
 
