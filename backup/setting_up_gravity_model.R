@@ -1,7 +1,10 @@
 library(sf)
+library(raster)
 library(tidyverse)
 library(gganimate)
 library(gravity)
+library(doParallel)
+library(snow)
 
 #Changing the working directory
 setwd("~/Desktop/DATA\ 440/Deliverables")
@@ -108,7 +111,6 @@ pts_for_anim <- pts_for_anim %>%
 back_plot <- ggplot() + #checking that everything worked correctly
   theme_void() +
   geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
-  geom_sf(data = edge_lines, color = "grey65") +
   geom_sf(data = adm1_centroids, size = 3) +
   geom_point(data = pts_for_anim, mapping = aes(x = lon, y = lat, color = as.factor(id)), #for gganimate to work, has to be points
              show.legend = FALSE)
@@ -121,16 +123,67 @@ anim <- back_plot + #adding the animation-specific stuff
 gganimate::animate(anim, nframes = 100, fps = 20) #actually animating the movement
 anim_save("Figures/moving_people_all_districts.gif") #saving the animation
 
+#Trying to add more points for a more visually interesting animation
+test_pts <- tibble(lon = st_coordinates(adm1_centroids)[,1], 
+                   lat = st_coordinates(adm1_centroids)[,2])
+
+migration_magnitudes <- final_flow_data %>% #pulling out magnitude of flows... will change num of pts based on this
+  filter(NODEI == 1) %>% 
+  dplyr::select(PrdMIG) %>% 
+  deframe()
+
+resized_magnitudes <- floor(migration_magnitudes / 25) #getting the proportionate flows
+
+#  very garbage hardcoded df for animation... PROOF OF CONCEPT!
+more_people <- tibble(lon = c(rep(test_pts$lon[[1]], sum(resized_magnitudes)),
+                              rep(test_pts$lon[[2]], resized_magnitudes[1]), 
+                              rep(test_pts$lon[[3]], resized_magnitudes[2]), 
+                              rep(test_pts$lon[[4]], resized_magnitudes[3])), 
+                   lat = c(rep(test_pts$lat[[1]], sum(resized_magnitudes)), 
+                           rep(test_pts$lat[[2]], resized_magnitudes[1]), 
+                           rep(test_pts$lat[[3]], resized_magnitudes[2]), 
+                           rep(test_pts$lat[[4]], resized_magnitudes[3])),
+                   id = rep(1:sum(resized_magnitudes), 2) %>% as.factor(),
+                   time = c(rep(1, sum(resized_magnitudes)), rep(2, sum(resized_magnitudes))))
+
+anim_v2 <- ggplot() + #creating the animation plot
+  geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
+  geom_sf_text(data = swz_adm1, mapping = aes(label = NAME_1), size = 4, alpha = 0.5, color = "grey40") +
+  geom_jitter(data = more_people, mapping = aes(x = lon, y = lat, color = id), width = 0.15, 
+              height = 0.15, show.legend = FALSE) +
+  theme_void() +
+  transition_reveal(along = time) +
+  ease_aes()
+
+gganimate::animate(anim_v2, nframes = 100, fps = 20) #animating
+anim_save("Figures/moving_people_lots_of_people.gif") #saving the animation
+
 #Producing a national level gravity model
-final_flow_data <- final_flow_data %>% 
-  mutate(var = rep(1, nrow(final_flow_data)), #requires an additional var for estimation, so using a dummy var
-         dist = as.numeric(dist))
+final_flow_data <- final_flow_data %>% mutate(dist = as.numeric(dist))
+
+#  bringing in NTL as an additional push/pull factor in the model
+swz_ntl <- raster("~/Desktop/DATA 440/ABM_Summer_Stuff/section_2.1/data/landuse_cover/swz_viirs_100m_2015.tif")
+
+beginCluster(n = detectCores() - 1) #parallelizing the process - still takes a hot sec...
+swz_ntl_adm1 <- raster::extract(swz_ntl, swz_adm1, df = TRUE) #extracting to the adm1 level
+endCluster()
+
+agg_ntl <- swz_ntl_adm1 %>% #aggregating to the adm1 level
+  group_by(ID) %>%
+  summarize(ttl_ntl = sum(swz_viirs_100m_2015, na.rm = TRUE)) #ends up w/coding as flow data (1 - Hhohho, etc.)
+
+ntl_od <- expand.grid(agg_ntl$ttl_ntl, agg_ntl$ttl_ntl) %>% #getting data into a nicer format
+  rename(destination_ntl = Var1, origin_ntl = Var2) %>%
+  dplyr::select(origin_ntl, destination_ntl) %>% 
+  filter(origin_ntl != destination_ntl)
+
+final_flow_data <- final_flow_data %>% bind_cols(ntl_od) #adding ntl stuff to flow data
 
 #  an initial model - double demeaning
 ddm_fit <- ddm(
   dependent_variable = "PrdMIG",
   distance = "dist",
-  additional_regressors = c("var"), 
+  additional_regressors = c("destination_ntl"), 
   code_origin = "NODEI",
   code_destination = "NODEJ",
   data = final_flow_data
@@ -143,12 +196,13 @@ summary(ddm_fit)
 ppml_fit <- ppml(
   dependent_variable = "PrdMIG",
   distance = "dist",
-  additional_regressors = c("var"), #TODO: replace with NTL
+  additional_regressors = c("destination_ntl"), 
   data = final_flow_data
 )
 
-#  looking at the fitted vals
-fitted(ppml_fit) #produces fitted vals that are more approachable as compared to ddm... looks to be a good pred
+#  looking at the fitted vals + summary
+summary(ppml_fit)
+fitted(ppml_fit) #produces fitted vals that are more interpretable as compared to ddm... looks to be a good pred
 
 #Trying to use the model to predict flows in Mkhiweni
 load("for_gravity_model.RData") #bringing in swz_mk, urban_areas, urban_centroids, mk_voronoi_adm2
@@ -165,16 +219,34 @@ dists <- st_distance(st_geometry(urban_centroids), st_geometry(urban_centroids))
 mk_dist_data <- pivot_longer(dists, V1:V12, names_to = "centroid_to", values_to = "dist") %>%
   mutate(dist = as.numeric(dist),
          centroid_to = str_remove(centroid_to, "V"),
-         centroid_from = rep(1:12, each = 12), 
-         var = 1) %>% 
+         centroid_from = rep(1:12, each = 12)) %>% 
   dplyr::select(centroid_from, everything()) %>% 
   filter(dist != 0)
 
+#  adding NTL for adm2
+beginCluster(n = detectCores() - 1) 
+swz_ntl_urban_polys <- raster::extract(swz_ntl, st_as_sf(mk_voronoi_adm2), df = TRUE) #extracting ntl to the voronoi polys
+endCluster()
+
+agg_ntl_urban <- swz_ntl_urban_polys %>% #aggregating to the urban polys
+  group_by(ID) %>%
+  summarize(ttl_ntl = sum(swz_viirs_100m_2015, na.rm = TRUE))
+
+ntl_od_urban <- expand.grid(agg_ntl_urban$ttl_ntl, agg_ntl_urban$ttl_ntl) %>% 
+  rename(destination_ntl = Var1, origin_ntl = Var2) %>%
+  dplyr::select(origin_ntl, destination_ntl) %>% 
+  filter(origin_ntl != destination_ntl)
+
+mk_dist_data <- mk_dist_data %>% 
+  bind_cols(ntl_od_urban) %>%
+  mutate(dist_log = log(dist))
+
 #  pred at the adm2 level
-predict(ppml_fit, mk_dist_data$dist) #doesn't work currently
+mk_pred_flows <- mk_dist_data %>% 
+  dplyr::select(centroid_from, centroid_to, dist, destination_ntl) %>%
+  add_column(pred_flows = predict(ppml_fit, mk_dist_data)) 
 
-#TODO: bring in NTL data and integrate into gravity model analysis
-#TODO: figure out how to predict movement w/the new adm2 data
+#TODO: worth inspecting pred flows in mk further to make sure it worked correctly
+#TODO: maybe add population as a pull factor
 
-#TODO: animation... either have more people moving (more pts) OR resize the pts to reflect magnitude of flow
-#TODO: work on improving the in/out movement visualization (all in one plot...?)
+#TODO: work on improving the in/out graph and edges visualization (all in one plot...?)
