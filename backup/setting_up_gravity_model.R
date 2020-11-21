@@ -163,27 +163,38 @@ final_flow_data <- final_flow_data %>% mutate(dist = as.numeric(dist))
 
 #  bringing in NTL as an additional push/pull factor in the model
 swz_ntl <- raster("~/Desktop/DATA 440/ABM_Summer_Stuff/section_2.1/data/landuse_cover/swz_viirs_100m_2015.tif")
+swz_pop20 <- raster("~/Desktop/DATA 440/ABM_Summer_Stuff/section_2.1/data/pop_data/swz_ppp_2020_1km_Aggregated.tif")
 
 beginCluster(n = detectCores() - 1) #parallelizing the process - still takes a hot sec...
 swz_ntl_adm1 <- raster::extract(swz_ntl, swz_adm1, df = TRUE) #extracting to the adm1 level
+swz_pop20_adm1 <- raster::extract(swz_pop20, swz_adm1, df = TRUE)
 endCluster()
 
-agg_ntl <- swz_ntl_adm1 %>% #aggregating to the adm1 level
+agg_ntl <- swz_ntl_adm1 %>% #aggregating ntl to the adm1 level
   group_by(ID) %>%
   summarize(ttl_ntl = sum(swz_viirs_100m_2015, na.rm = TRUE)) #ends up w/coding as flow data (1 - Hhohho, etc.)
+
+agg_pop <- swz_pop20_adm1 %>% #same for pop
+  group_by(ID) %>%
+  summarize(ttl_pop = sum(swz_ppp_2020_1km_Aggregated, na.rm = TRUE))
 
 ntl_od <- expand.grid(agg_ntl$ttl_ntl, agg_ntl$ttl_ntl) %>% #getting data into a nicer format
   rename(destination_ntl = Var1, origin_ntl = Var2) %>%
   dplyr::select(origin_ntl, destination_ntl) %>% 
   filter(origin_ntl != destination_ntl)
 
-final_flow_data <- final_flow_data %>% bind_cols(ntl_od) #adding ntl stuff to flow data
+pop_od <- expand.grid(agg_pop$ttl_pop, agg_pop$ttl_pop) %>% #same procedure for pop data
+  rename(destination_pop = Var1, origin_pop = Var2) %>%
+  dplyr::select(origin_pop, destination_pop) %>% 
+  filter(origin_pop != destination_pop)
+
+final_flow_data <- final_flow_data %>% bind_cols(ntl_od, pop_od) #adding ntl/pop data to flow data
 
 #  an initial model - double demeaning
 ddm_fit <- ddm(
   dependent_variable = "PrdMIG",
   distance = "dist",
-  additional_regressors = c("destination_ntl"), 
+  additional_regressors = c("origin_ntl", "destination_ntl", "origin_pop", "destination_pop"), 
   code_origin = "NODEI",
   code_destination = "NODEJ",
   data = final_flow_data
@@ -196,7 +207,7 @@ summary(ddm_fit)
 ppml_fit <- ppml(
   dependent_variable = "PrdMIG",
   distance = "dist",
-  additional_regressors = c("destination_ntl"), 
+  additional_regressors = c("origin_ntl", "destination_ntl", "origin_pop", "destination_pop"), 
   data = final_flow_data
 )
 
@@ -226,27 +237,35 @@ mk_dist_data <- pivot_longer(dists, V1:V12, names_to = "centroid_to", values_to 
 #  adding NTL for adm2
 beginCluster(n = detectCores() - 1) 
 swz_ntl_urban_polys <- raster::extract(swz_ntl, st_as_sf(mk_voronoi_adm2), df = TRUE) #extracting ntl to the voronoi polys
+swz_pop20_urban_polys <- raster::extract(swz_pop20, st_as_sf(mk_voronoi_adm2), df = TRUE)
 endCluster()
 
 agg_ntl_urban <- swz_ntl_urban_polys %>% #aggregating to the urban polys
   group_by(ID) %>%
   summarize(ttl_ntl = sum(swz_viirs_100m_2015, na.rm = TRUE))
 
+agg_pop_urban <- swz_pop20_urban_polys %>% #same for pop
+  group_by(ID) %>%
+  summarize(ttl_pop = sum(swz_ppp_2020_1km_Aggregated, na.rm = TRUE))
+
 ntl_od_urban <- expand.grid(agg_ntl_urban$ttl_ntl, agg_ntl_urban$ttl_ntl) %>% 
   rename(destination_ntl = Var1, origin_ntl = Var2) %>%
   dplyr::select(origin_ntl, destination_ntl) %>% 
   filter(origin_ntl != destination_ntl)
 
+pop_od_urban <- expand.grid(agg_pop_urban$ttl_pop, agg_pop_urban$ttl_pop) %>% 
+  rename(destination_pop = Var1, origin_pop = Var2) %>%
+  dplyr::select(origin_pop, destination_pop) %>% 
+  filter(origin_pop != destination_pop)
+
 mk_dist_data <- mk_dist_data %>% 
-  bind_cols(ntl_od_urban) %>%
+  bind_cols(ntl_od_urban, pop_od_urban) %>%
   mutate(dist_log = log(dist))
 
-#  pred at the adm2 level
-mk_pred_flows <- mk_dist_data %>% 
+#  predicting at the adm2 level
+mk_pred_flows <- mk_dist_data %>% #seems to work correctly, but the estimated model doesn't seem to translate well to more granular flows...
   dplyr::select(centroid_from, centroid_to, dist, destination_ntl) %>%
   add_column(pred_flows = predict(ppml_fit, mk_dist_data)) 
 
-#TODO: worth inspecting pred flows in mk further to make sure it worked correctly
-#TODO: maybe add population as a pull factor
-
-#TODO: work on improving the in/out graph and edges visualization (all in one plot...?)
+#Saving all the things that are needed for the writeup
+save(OD_matrix, dist_matrix, file = "for_P3_writeup.RData")

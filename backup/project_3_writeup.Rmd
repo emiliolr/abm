@@ -11,54 +11,99 @@ output:
 ```{r setup, include = FALSE}
 library(tidyverse)
 library(sf)
-library(raster)
 library(knitr)
+
+load("for_P3_writeup.RData")
 
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "50%")
 ```
 
+<!--TODO: maybe make presentation of tables/matrices nicer-->
+
 # Outline 
 
-In this project, I used first level administrative subdivision movement data to produce a national-level gravity model for internal migration flows in Eswatini. Then, I used this model to predict movement flows between urban areas for my selected region, Mkhiweni. I also created a number of animations to visualize predicted movement, both at the national level and within Mkhiweni.
+In this project, I used first level administrative subdivision movement data to produce a national-level gravity model for internal migration flows in Eswatini. Then, I used this model to predict movement flows between urban areas for my selected lower-level administrative subdivision, Mkhiweni. I also produced a number of animations to visualize observed movement. In this deliverable, I summarize these procedures and comment on how this analysis could be extended and improved.
 
 # Working with Movement Data
 
-[WorldPop](https://www.worldpop.org/) has curated a variety of data for many low and middle income countries (LMICs). For this project, I used [district-level movement data](https://www.worldpop.org/geodata/summary?id=1281) for Eswatini as the basis for my gravity model. This data was produced by applying a gravity type spatial interaction model to World Health Organization data for sub-national movement from 2015. Movement is at a five year temporal resolution for this data set.
+[WorldPop](https://www.worldpop.org/) has curated a variety of data for many low and middle income countries (LMICs). For this project, I used [district-level movement data](https://www.worldpop.org/geodata/summary?id=1281) for Eswatini as the basis for my gravity model. This data was produced by applying an unconstrained gravity type spatial interaction model to World Health Organization data for sub-national movement from 2015. Movement is at a five year temporal resolution for this data set.
+
+After reading in the data, I spent several days exploring and visualizing the data. In total, flows in the data sum out to $\approx$ 15330, i.e., WorldPop projects that 15330 people moved from one district to another in this five year period. Next, I produced an origin-destination matrix (OD matrix) that summarizes movement between districts as observed in the WorldPop data.
+
+```{r od-matrix}
+kable(OD_matrix %>% mutate(origin_node = 1:4) %>% select(origin_node, everything()))
+```
+
+Notice that the row IDs (one through four) indicate the origin district and the column IDs the destination. The coding scheme for the districts, which I will stick to throughout this write-up, is:
+
+1. Hhohho
+2. Lubombo
+3. Manzini
+4. Shiselweni
+
+I have include a visualization showing this coding scheme below, along with the centroid locations for each district.
+
+```{r coding-scheme}
+worldpop_centroid_data <- read_sf("Data/SWZ_5yrs_InternalMigFlows_2010/SWZ_AdminUnit_Centroids/SWZ_AdminUnit_Centroids.shp")
+swz_adm1 <- read_sf("Data/gadm36_SWZ_shp/gadm36_SWZ_1.shp")
+
+ggplot() +
+  theme_void() +
+  geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
+  geom_sf_text(data = swz_adm1, mapping = aes(label = NAME_1), alpha = 0.3, size = 6) +
+  geom_sf(data = worldpop_centroid_data) +
+  geom_sf_text(data = worldpop_centroid_data, mapping = aes(label = IPUMSID), nudge_y = -0.05)
+```
+
+In addition to the OD matrix, I created a matrix that included the distances between all district _centroids_, which is generally the standard procedure for calculating distance between region when inputting into a gravity model (more on this later).
+
+```{r dist-matrix}
+kable(dist_matrix %>% mutate(origin_node = 1:4) %>% select(origin_node, everything()))
+```
+
+Finally, I produced a plot showing <!--TODO: add in the souped up vertex/edges plots--> 
 
 <!--
 TODO: 
   -include plots that show in-out migration for each centroid
-  -move animations to this section as a more appealing way of looking at movement
+    -improve these so that they're cleaner!
+  -describe animation generation procedure
 -->
 
 ## Animating Movement
 
-I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple a1nimation where only one person moved from the centroid of Hhhohho to the centroid of Lubombo. 
+As an initial exercise, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple a1nimation where only one person moved from the centroid of Hhhohho to the centroid of Lubombo. 
 
 ```{r basic-move-anim}
 knitr::include_graphics("Figures/moving_person.gif")
 ```
 
-Then, I worked adding more people and varying the movement speeds. Having variable movement speeds wasn't really necessary for the final product, but it was a good exercise in working with `gganimate`.
+Then, I worked adding more agents and varying the movement speeds. Having variable movement speeds wasn't really necessary for the final product, but it was a good exercise in working with `gganimate`.
 
 ```{r 2nd-move-anim}
 knitr::include_graphics("Figures/moving_many_people.gif")
 ```
 
-Next, I had people move to/from all centroids.
+Next, I had agents move to/from all centroids.
 
 ```{r 3rd-move-anim}
 knitr::include_graphics("Figures/moving_people_all_districts.gif")
 ```
 
-And finally, I... _(something about scaling to the movement from district to district)_.
+And finally, I increased the number of agents moving from district to district. Unfortunately, I couldn't figure out how to do this in a robust manner, so I ended having to hard-code quite a few things. Still, as a proof of concept, this is a pretty neat animation! To produce this animation, I used `ggplot::geom_jitter()` to displace the agents and resized the number of agents proportionally to the magnitude of observed flows in the WorldPop data set (this is animation is at $\frac{1}{25}$ scale). To make the hard-coding easier, I focused on only the out-flows from Hhhohho.
+
+```{r 4th-move-anim}
+knitr::include_graphics("Figures/moving_people_lots_of_people.gif")
+```
 
 # Getting Started with Gravity Models
 
 <!--
 TODO: 
   -talk about the London vignette and include some of the results
+    -figure out what things you can include from this (maybe actual/pred OD matrices...?)
   -talk about the Garcia paper and the dynamics of gravity models
+    -include basic form (equation) and describe the diff elements + extensions to the model (vignette explanation will help here)
     -applicability to other countries
     -cross-temporal applicability
 -->
@@ -79,8 +124,8 @@ TODO:
 
 <!--
 TODO: 
-  -add in voronoi tessellation and short discussion of how project 1 leads into this analysis
-  -show the pred movement using the national level gravity model (visually...?)
+  -add in voronoi tessellation and short discussion of how Project 1 leads into this analysis
+  -show the pred movement using the national level gravity model - show OD matrix (?)
 -->
 
 ## Improving the Model
@@ -88,8 +133,10 @@ TODO:
 <!--
 TODO:
   -generally, talk about how we could improve the gravity model 
-    -are there issues w/using a national-level model for a smaller region... look at Garcia et al.
+    -are there issues w/using a national-level model for a smaller region... ideas from Garcia et al.
+      -seems like not enough variation in some vars + not enough explan vars to have good preds at this level
+      -what explan vars could be added
     -talk about improving the temporal + spatial granularity of the gravity model
-  -look at how the animation could be improved (more visual info?)
+  -think about how the animation could be improved (more visual info?)
 -->
 
