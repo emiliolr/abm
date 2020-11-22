@@ -62,7 +62,8 @@ Finally, I produced a plot visualizing the information contained in the OD matri
 ggplot() + #leaving/coming into the centroid
   theme_void() +
   geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
-  geom_sf(data = origin_summarized, mapping = aes(fill = migration), size = 5, shape = 21) +
+  geom_sf(data = origin_summarized, mapping = aes(fill = migration), size = 5, shape = 21, 
+          color = "lightskyblue1") +
   geom_sf(data = destinations_summarized, mapping = aes(color = migration), size = 6, shape = 13, 
           fill = NA, show.legend = FALSE) +
   scale_color_viridis_c(option = "cividis") +
@@ -98,13 +99,7 @@ knitr::include_graphics("Figures/moving_people_lots_of_people.gif")
 
 # Getting Started with Gravity Models
 
-<!--
-TODO: 
-  -talk about the Garcia paper and the dynamics of gravity models
-    -include basic form (equation) and describe the diff elements + extensions to the model (vignette explanation will help here)
-    -applicability to other countries
-    -cross-temporal applicability
--->
+<!--TODO: add in any visual results from the vignette?-->
 
 As a first exercise in working with gravity models, I followed along with a short vignette on basic gravity model estimation procedures (you can find this exercise [here](https://rpubs.com/adam_dennett/257231)). This vignette helped me get acquainted with the most basic form of the gravity model, which is generally presented as: $$T_{ij} = \frac{P^{\alpha}_{i}P^{\beta}_{j}}{D_{ij}}$$ This can be broken down as follows:
 
@@ -112,9 +107,9 @@ As a first exercise in working with gravity models, I followed along with a shor
 - $P_{i}$ is the population at node $i$ and $P_{j}$ is the population at node $j$, and
 - $D_{ij}$ is the distance from node $i$ to node $j$.
 
-This is a really neat way of modeling migration. Basically, we apply the equation for gravity between two masses to migration flows, noticing that there are certain push or pull factors ($P_i$ and $P_j$), as well as a certain "friction" that might hinder movement between two locations ($D_{ij}$). This basic model can be extended to include more push or pull factors, then being considered a gravity-type spatial interaction model (GTSIM).
+This is a really neat way of modeling migration. Basically, we apply the equation for gravity between two masses to migration flows, noticing that there are certain push or pull factors ($P_i$ and $P_j$), as well as a certain "friction" factors that might hinder movement between two locations ($D_{ij}$). This basic model can be extended to include more push or pull factors, then being considered a gravity-type spatial interaction model (GTSIM).
 
-In the vignette, we used commuter movement data between London boroughs. Notice that this movement is at a much finer temporal granularity than the WorldPop data for Eswatini. The key difference is the London data contains short-term movement decisions (based on work-related commutes), whereas the Eswatini data represents much longer-term movement decisions. The vignette covered how to wrangle the data into the appropriate form, and looked at different ways to approach the model. It showed that, while it is possible to achieve reasonably good results when just picking the model parameters using intuition ($\alpha$, $\beta$, $\gamma$), we can improve the accuracy by estimating the parameters using the data and leveraging a Poisson regression model. From the less refined to the more refined approach, we the $R^2$ improve from 0.503 to 0.673.
+In the vignette, we used commuter movement data between London boroughs. Notice that this movement is at a much finer temporal granularity than the WorldPop data for Eswatini. The key difference is the London data contains short-term movement decisions (based on work-related commutes), whereas the Eswatini data represents much longer-term movement decisions. The vignette covered how to wrangle the data into the appropriate form, how to produce an OD matrix, and different ways to approach the gravity model. It showed that, while it is possible to achieve reasonably good results when just picking the model parameters using intuition ($\alpha$, $\beta$, $\gamma$), we can improve the accuracy by estimating the parameters using the data and leveraging a Poisson regression model. From the less refined to the more refined approach, we saw an improvement in the $R^2$ from 0.503 to 0.673.
 
 With these practical results in minds, I moved next towards the comprehensive paper _Modeling internal migration flows in sub-Saharan Africa using census microdata_ from Garcia et al (see the article [here](https://academic.oup.com/migration/article/3/1/89/2413406)). In this paper, the authors explore the utility of GTSIMs for predicting domestic migration flows in Sub-Saharan Africa, exploring the potential for cross-country and cross-temporal applicability. They included a suite of push/pull factors in their analysis, including urban population, whether or not the locations were contiguous, and the proportion of the population that was male. They found that, while the GTSIM performed very well for certain countries (i.e., Senegal and Ghana), it performed consistently poorly in others (i.e., Malawi). Likewise, in their exploration of cross- country and temporal application, they found some possibility of strong prediction in varied settings, but only for those countries whose movement was well predicted with their own GTSIM. This implies that GTSIMs do perform well generally, but there are likely certain intrinsic elements that cause GTSIMs to systematically perform poorly on certain countries.
 
@@ -127,6 +122,8 @@ TODO:
   -visually compare fitted values w/actual movement in some way
     -talk about adding NTL and population as additional regressors
 -->
+
+At this point, I had everything that I needed to produce a gravity model for Eswatini at the district level. Before estimating the model, I first brought in a few additional variables as potential push/pull factors: night time lights and the population for each district. <!--WORK FROM HERE NEXT!-->
 
 # Predicting Movement Flows in Mkhiweni
 
