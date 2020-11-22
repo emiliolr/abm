@@ -58,13 +58,15 @@ destinations_summarized <- destination_flows %>%  #for coming to the centroid
   summarize(migration = sum(PrdMIG))
 
 #  plotting aggregate in/out for each centroid
-ggplot() + #leaving the centroid
-  geom_sf(data = swz_adm1) +
-  geom_sf(data = origin_summarized, mapping = aes(size = migration))
-
-ggplot() + #coming to the centroid
-  geom_sf(data = swz_adm1) +
-  geom_sf(data = destinations_summarized, mapping = aes(size = migration))
+ggplot() + #leaving/coming into the centroid
+  theme_void() +
+  geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
+  geom_sf(data = origin_summarized, mapping = aes(fill = migration), size = 5, shape = 21) +
+  geom_sf(data = destinations_summarized, mapping = aes(color = migration), size = 6, shape = 13, 
+          fill = NA, show.legend = FALSE) +
+  scale_color_viridis_c(option = "cividis") +
+  scale_fill_viridis_c(option = "cividis") +
+  labs(fill = "Migration Flows")
 
 #  2. working on a more descriptive graph (includes edges)
 adm1_centroids <- st_centroid(swz_adm1) %>% st_geometry()
@@ -234,7 +236,7 @@ mk_dist_data <- pivot_longer(dists, V1:V12, names_to = "centroid_to", values_to 
   dplyr::select(centroid_from, everything()) %>% 
   filter(dist != 0)
 
-#  adding NTL for adm2
+#  adding NTL/pop for adm2
 beginCluster(n = detectCores() - 1) 
 swz_ntl_urban_polys <- raster::extract(swz_ntl, st_as_sf(mk_voronoi_adm2), df = TRUE) #extracting ntl to the voronoi polys
 swz_pop20_urban_polys <- raster::extract(swz_pop20, st_as_sf(mk_voronoi_adm2), df = TRUE)
@@ -268,4 +270,4 @@ mk_pred_flows <- mk_dist_data %>% #seems to work correctly, but the estimated mo
   add_column(pred_flows = predict(ppml_fit, mk_dist_data)) 
 
 #Saving all the things that are needed for the writeup
-save(OD_matrix, dist_matrix, file = "for_P3_writeup.RData")
+save(OD_matrix, dist_matrix, origin_summarized, destinations_summarized, file = "for_P3_writeup.RData")

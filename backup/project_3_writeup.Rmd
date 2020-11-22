@@ -34,14 +34,7 @@ After reading in the data, I spent several days exploring and visualizing the da
 kable(OD_matrix %>% mutate(origin_node = 1:4) %>% select(origin_node, everything()))
 ```
 
-Notice that the row IDs (one through four) indicate the origin district and the column IDs the destination. There are NA values along the diagonal as we are interested only in the _flows_. The coding scheme for the districts, which I will stick to throughout this write-up, is:
-
-1. Hhohho
-2. Lubombo
-3. Manzini
-4. Shiselweni
-
-I have included a plot showing this coding scheme below, along with the centroid locations for each district.
+Notice that the row IDs (one through four) indicate the origin district and the column IDs the destination. There are NA values along the diagonal as we are interested only in the _flows_. The coding scheme for the districts, which I will stick to throughout this write-up, is: 1 - Hhohho; 2 - Lubombo; 3 - Manzini; 4 - Shiselweni. I have included a plot showing this coding scheme below, along with the centroid locations for each district.
 
 ```{r coding-scheme}
 worldpop_centroid_data <- read_sf("Data/SWZ_5yrs_InternalMigFlows_2010/SWZ_AdminUnit_Centroids/SWZ_AdminUnit_Centroids.shp")
@@ -61,20 +54,25 @@ In addition to the OD matrix, I created a matrix that included the distances bet
 kable(dist_matrix %>% mutate(origin_node = 1:4) %>% select(origin_node, everything()))
 ```
 
-Notice that this matrix is symmetric while the OD matrix is not. In the OD matrix, movement from $\text{node}_i$ to $\text{node}_j$ is not necessarily equal to movement from $\text{node}_j$ to $\text{node}_i$. However, distance between two nodes doesn't change based on which node you start from, hence the symmetric nature of the second matrix.
+Notice that this matrix is symmetric while the OD matrix is not. In the OD matrix, movement from district $i$ to district $j$ is not necessarily equal to movement from district $j$ to district $i$. However, distance between two districts doesn't change based on which node you start from, hence the symmetric nature of the second matrix.
 
-Finally, I produced a plot visualizing the information contained in the OD matrix. <!--TODO: add in the souped up vertex/edges plots--> 
+Finally, I produced a plot visualizing the information contained in the OD matrix. The crosses represent the quantity of in-flows and the filled-in circles represent the quantity of out-flows.
 
-<!--
-TODO: 
-  -include plots that show in-out migration for each centroid
-    -improve these so that they're cleaner!
-  -describe animation generation procedure
--->
+```{r in-out-flows}
+ggplot() + #leaving/coming into the centroid
+  theme_void() +
+  geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
+  geom_sf(data = origin_summarized, mapping = aes(fill = migration), size = 5, shape = 21) +
+  geom_sf(data = destinations_summarized, mapping = aes(color = migration), size = 6, shape = 13, 
+          fill = NA, show.legend = FALSE) +
+  scale_color_viridis_c(option = "cividis") +
+  scale_fill_viridis_c(option = "cividis") +
+  labs(fill = "Migration Flows")
+```
 
 ## Animating Movement
 
-As an initial exercise, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple animation where only one person moved from the centroid of Hhhohho to the centroid of Lubombo. 
+To make these visualizations of movement more visually interesting, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple animation where only one agent moved from the centroid of Hhhohho to the centroid of Lubombo. 
 
 ```{r basic-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_person.gif")
@@ -86,13 +84,13 @@ Then, I worked adding more agents and varying the movement speeds. Having variab
 knitr::include_graphics("Figures/moving_many_people.gif")
 ```
 
-Next, I had agents move to/from all centroids.
+Next, I had agents move to/from all centroids. This required quite a bit more data wrangling and spatial computation than the previous two animations.
 
 ```{r 3rd-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_people_all_districts.gif")
 ```
 
-And finally, I increased the number of agents moving from district to district. Unfortunately, I couldn't figure out how to do this in a robust manner, so I ended having to hard-code quite a few things. Still, as a proof of concept, this is a pretty neat animation! To produce this animation, I used `ggplot::geom_jitter()` to displace the agents and resized the number of agents proportionally to the magnitude of observed flows in the WorldPop data set (this is animation is at $\frac{1}{25}$ scale). To make the hard-coding easier, I focused on only the out-flows from Hhhohho.
+And finally, I increased the number of agents moving from district to district. Unfortunately, I couldn't figure out how to do this in an entirely robust manner, so I ended having to hard-code quite a few things. Still, as a proof of concept, this is a pretty neat animation! To produce this animation, I used `ggplot::geom_jitter()` to displace the agents and give them each their own movemtn path from district to district. Then, I resized the number of agents proportionally to the match the magnitude of observed flows in the WorldPop data set (this is animation is at $\frac{1}{25}$ scale). To make the hard-coding a little easier, I focused on only the out-flows from Hhhohho.
 
 ```{r 4th-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_people_lots_of_people.gif")
@@ -102,24 +100,32 @@ knitr::include_graphics("Figures/moving_people_lots_of_people.gif")
 
 <!--
 TODO: 
-  -talk about the London vignette and include some of the results
-    -figure out what things you can include from this (maybe actual/pred OD matrices...?)
   -talk about the Garcia paper and the dynamics of gravity models
     -include basic form (equation) and describe the diff elements + extensions to the model (vignette explanation will help here)
     -applicability to other countries
     -cross-temporal applicability
 -->
 
+As a first exercise in working with gravity models, I followed along with a short vignette on basic gravity model estimation procedures (you can find this exercise [here](https://rpubs.com/adam_dennett/257231)). This vignette helped me get acquainted with the most basic form of the gravity model, which is generally presented as: $$T_{ij} = \frac{P^{\alpha}_{i}P^{\beta}_{j}}{D_{ij}}$$ This can be broken down as follows:
+
+- $T_{ij}$ is the flow from node $i$ to node $j$,
+- $P_{i}$ is the population at node $i$ and $P_{j}$ is the population at node $j$, and
+- $D_{ij}$ is the distance from node $i$ to node $j$.
+
+This is a really neat way of modeling migration. Basically, we apply the equation for gravity between two masses to migration flows, noticing that there are certain push or pull factors ($P_i$ and $P_j$), as well as a certain "friction" that might hinder movement between two locations ($D_{ij}$). This basic model can be extended to include more push or pull factors, then being considered a gravity-type spatial interaction model (GTSIM).
+
+In the vignette, we used commuter movement data between London boroughs. Notice that this movement is at a much finer temporal granularity than the WorldPop data for Eswatini. The key difference is the London data contains short-term movement decisions (based on work-related commutes), whereas the Eswatini data represents much longer-term movement decisions. The vignette covered how to wrangle the data into the appropriate form, and looked at different ways to approach the model. It showed that, while it is possible to achieve reasonably good results when just picking the model parameters using intuition ($\alpha$, $\beta$, $\gamma$), we can improve the accuracy by estimating the parameters using the data and leveraging a Poisson regression model. From the less refined to the more refined approach, we the $R^2$ improve from 0.503 to 0.673.
+
+With these practical results in minds, I moved next towards the comprehensive paper _Modeling internal migration flows in sub-Saharan Africa using census microdata_ from Garcia et al (see the article [here](https://academic.oup.com/migration/article/3/1/89/2413406)). In this paper, the authors explore the utility of GTSIMs for predicting domestic migration flows in Sub-Saharan Africa, exploring the potential for cross-country and cross-temporal applicability. They included a suite of push/pull factors in their analysis, including urban population, whether or not the locations were contiguous, and the proportion of the population that was male. They found that, while the GTSIM performed very well for certain countries (i.e., Senegal and Ghana), it performed consistently poorly in others (i.e., Malawi). Likewise, in their exploration of cross- country and temporal application, they found some possibility of strong prediction in varied settings, but only for those countries whose movement was well predicted with their own GTSIM. This implies that GTSIMs do perform well generally, but there are likely certain intrinsic elements that cause GTSIMs to systematically perform poorly on certain countries.
+
 # Producing a Gravity Model for Eswatini
 
 <!--
 TODO:
-  -talk about the wrangling procedure and show the OD matrix
-    -mention the coding for the diff adm 1s
   -discuss the use of this OD matrix and how it leads into the estimation of a gravity model
     -talk a little bit about diff estimation procedures (ddm/ppml)...?
   -visually compare fitted values w/actual movement in some way
-    -see how the model improves when NTL are added
+    -talk about adding NTL and population as additional regressors
 -->
 
 # Predicting Movement Flows in Mkhiweni
@@ -128,6 +134,7 @@ TODO:
 TODO: 
   -add in voronoi tessellation and short discussion of how Project 1 leads into this analysis
   -show the pred movement using the national level gravity model - show OD matrix (?)
+    -talk about procedure for adding in NTL/population at this level (using voronoi polys as boundaries)
 -->
 
 ## Improving the Model
