@@ -215,7 +215,43 @@ ppml_fit <- ppml(
 
 #  looking at the fitted vals + summary
 summary(ppml_fit)
-fitted(ppml_fit) #produces fitted vals that are more interpretable as compared to ddm... looks to be a good pred
+ppml_district_fit <- fitted(ppml_fit) #produces fitted vals that are more interpretable as compared to ddm... looks to be a good pred
+
+resid_matrix <- final_flow_data %>% #making a matrix of resids for writeup
+  add_column(resid = final_flow_data$PrdMIG - as.numeric(ppml_district_fit)) %>%
+  dplyr::select(NODEI, NODEJ, resid) %>%
+  pivot_wider(names_from = NODEJ, values_from = resid) %>%
+  dplyr::select(NODEI, `1`, everything()) %>%
+  rename(origin_node = NODEI)
+
+#  fitting a ppml w/out additional regressors for comparison
+ppml_worse_fit <- final_flow_data %>% 
+  mutate(var = 1) %>%
+  ppml(
+    dependent_variable = "PrdMIG",
+    distance = "dist",
+    additional_regressors = c("var"), 
+    data = .
+  )
+
+ppml_worse_fitted <- fitted(ppml_worse_fit)
+
+resid_matrix_worse <- final_flow_data %>% #making a matrix of resids for comparison in writeup
+  add_column(resid = final_flow_data$PrdMIG - as.numeric(ppml_worse_fitted)) %>%
+  dplyr::select(NODEI, NODEJ, resid) %>%
+  pivot_wider(names_from = NODEJ, values_from = resid) %>%
+  dplyr::select(NODEI, `1`, everything()) %>%
+  rename(origin_node = NODEI)
+
+#  calculating model RMSEs
+CalcRMSE <- function(observed, estimated){
+  res <- (observed - estimated)^2
+  RMSE <- sqrt(mean(res))
+  RMSE
+}
+
+CalcRMSE(final_flow_data$PrdMIG, ppml_district_fit) #for better model
+CalcRMSE(final_flow_data$PrdMIG, ppml_worse_fitted) #for worse model
 
 #Trying to use the model to predict flows in Mkhiweni
 load("for_gravity_model.RData") #bringing in swz_mk, urban_areas, urban_centroids, mk_voronoi_adm2
@@ -266,8 +302,11 @@ mk_dist_data <- mk_dist_data %>%
 
 #  predicting at the adm2 level
 mk_pred_flows <- mk_dist_data %>% #seems to work correctly, but the estimated model doesn't seem to translate well to more granular flows...
-  dplyr::select(centroid_from, centroid_to, dist, destination_ntl) %>%
-  add_column(pred_flows = predict(ppml_fit, mk_dist_data)) 
+  dplyr::select(centroid_from, centroid_to) %>%
+  add_column(pred_flows = exp(predict(ppml_fit, mk_dist_data))) 
+
+mk_dist_data[1, ] %>% add_row(mk_dist_data[1, ] %>% mutate(origin_ntl = 12000)) %>% predict(ppml_fit, .) %>% exp()
 
 #Saving all the things that are needed for the writeup
-save(OD_matrix, dist_matrix, origin_summarized, destinations_summarized, file = "for_P3_writeup.RData")
+save(OD_matrix, dist_matrix, origin_summarized, destinations_summarized, final_flow_data, resid_matrix, ppml_fit,
+     mk_pred_flows, resid_matrix_worse, file = "for_P3_writeup.RData")
