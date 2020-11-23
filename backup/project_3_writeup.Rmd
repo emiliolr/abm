@@ -19,7 +19,8 @@ load("for_P3_writeup.RData")
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
 ```
 
-<!--TODO: maybe make presentation of tables/matrices nicer-->
+<!--TODO: make presentation of tables/matrices nicer-->
+<!--TODO: clean up writing + do general editing on the deliverable-->
 
 # Outline 
 
@@ -125,39 +126,51 @@ final_flow_data %>%
   kable()
 ```
 
-This data was then used as input into a Poisson Pseudo Maximum Likelihood (PPML) gravity model, using the implementation in the [`gravity`](https://pacha.dev/gravity/articles/crash-course-on-gravity-models.html#poisson-pseudo-maximum-likelihood-ppml) library. I also tried a Double Demeaned (DDM) model, but the results were not easily interpretable because of the transformations applied in the estimation. Below, I've included a matrix of the model residuals for PPML to show that the fit is reasonably good (comparison with the OD matrix from Section 2 might be needed to properly interpret these results).
+This data was then used as input into a Poisson Pseudo Maximum Likelihood (PPML) gravity model, using the implementation in the [`gravity`](https://pacha.dev/gravity/articles/crash-course-on-gravity-models.html#poisson-pseudo-maximum-likelihood-ppml) library. I also tried a Double Demeaning (DDM) model, but the results were not easily interpretable because of the transformations applied in the estimation. Below, I've included a matrix of the model residuals for PPML to show that the fit is reasonably good (comparison with the OD matrix from Section 2 might be needed to properly interpret these results).
 
 ```{r resid-matrix}
 resid_matrix %>% kable()
 ```
 
-At this point, we should be a little worried about skewed results in our PPML model given that there aren't many data points to estimate the model on. Additionally, distance is really the only strong predictor amongst our pool of variables, which may also cause issues. Still, this seems to be a good fit at the district level at least.
+At this point, we should be a little worried about skewed results in our PPML model given that there aren't many data points to estimate the model on. Additionally, distance is really the only strong predictor amongst our pool of variables (all but distance have very small coefficient estimates), which may also cause issues. Still, this seems to be a good fit at the district level at least.
 
 # Attempting to Predict Movement Flows in Mkhiweni
 
-<!--
-TODO: 
-  -add in voronoi tessellation and short discussion of how Project 1 leads into this analysis
-  -show the pred movement using the national level gravity model - show OD matrix (?)
-    -talk about procedure for adding in NTL/population at this level (using voronoi polys as boundaries)
--->
-
-Before applying the national level model to Mkhiweni (my selected second-level administrative unit), I produced a Voronoi tessellation of using the centroids of the de facto urban areas in Mkhiweni. This acts as a clean, but somewhat artificial, partition of the space within Mkhiweni.
+Before applying the national level model to Mkhiweni (my selected second-level administrative unit), I produced a Voronoi tessellation using the centroids of the twelve de facto urban areas in Mkhiweni (these are from [Project 1](https://emiliolr.github.io/abm/description_of_settlements.html)). This acts as a clean, but somewhat artificial, partition of the space within Mkhiweni.
 
 ```{r voronoi-plot}
-
+ggplot() + 
+  theme_void() +
+  geom_sf(data = swz_mk, fill = "lightskyblue1") +
+  geom_sf(data = urban_areas, fill = "maroon", color = "maroon") +
+  geom_sf(data = urban_centroids) +
+  geom_sf(data = mk_voronoi_adm2, alpha = 0, color = "black")
 ```
 
+Notice that the Voronoi polygons don't perfectly partition the urban areas, just the _centroids_ for each urban area. At this point, I made the decision to use the Voronoi polygons as the polygons to extract and aggregate nighttime lights and population to (as opposed to the urban polygons themselves). This was probably not the correct decision to make here, but I wanted to use the Voronoi polygons in a meaningful way. Also, nighttime lights and population aren't strong predictors, so the difference here in terms of prediction accuracy is likely negligible. So, I collected all of the necessary variables and used the fitted PPML model to predict flows between urban areas in Mkhiweni. An excerpt of the predicted OD matrix for the twelve urban areas is included below. 
+
+```{r mk-pred-flows}
+mk_pred_flows %>% 
+  pivot_wider(names_from = centroid_to, values_from = pred_flows) %>%
+  dplyr::select(centroid_from, `1`, everything()) %>%
+  rename(origin_node = centroid_from) %>% 
+  dplyr::select(origin_node:`5`) %>%
+  filter(origin_node %in% 1:5) %>%
+  kable()
+```
+
+It's worth mentioning that the coding for the nodes is not the same as the original, district-level node coding. In total there are 144 cells in this matrix, but only 25 cells are included above. We should immediately be suspicious of these results: many of the flows are on the order of 10^4^, but only around 30000 people live in Mkhiweni. These flows do not seem reasonable for five year movement in Mkhiweni. There are quite a few possible explanations for these skewed predictions, but the most convincing is the fact that distance is our only strong predictor; since distances between centroids are much smaller here than at the district level, we have significantly less "friction" with no strong push/pull factors to balance out the predictions. Still, as a proof of concept, it's exciting to see everything come together to form predictions for Mkhiweni, even if the predictions are likely extremely biased.
 
 ## Improving the Model
 
 <!--
 TODO:
   -generally, talk about how we could improve the gravity model 
-    -are there issues w/using a national-level model for a smaller region... ideas from Garcia et al.
-      -seems like not enough variation in some vars + not enough explan vars to have good preds at this level
-      -what explan vars could be added
+    -are there issues w/using a national-level model for a smaller region... ideas from Garcia et al.?
+      -not enough explan vars to have good preds at this level
+      -what explan vars could be added?
     -talk about improving the temporal + spatial granularity of the gravity model
-  -think about how the animation could be improved (more visual info?)
+      -we'd need better data
+  -think about how the animation could be improved + how these results could be animated
 -->
 
