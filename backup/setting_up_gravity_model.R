@@ -150,7 +150,7 @@ more_people <- tibble(lon = c(rep(test_pts$lon[[1]], sum(resized_magnitudes)),
 
 anim_v2 <- ggplot() + #creating the animation plot
   geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
-  geom_sf_text(data = swz_adm1, mapping = aes(label = NAME_1), size = 4, alpha = 0.5, color = "grey40") +
+  geom_sf_text(data = swz_adm1, mapping = aes(label = NAME_1), size = 6, alpha = 0.5, color = "grey40") +
   geom_jitter(data = more_people, mapping = aes(x = lon, y = lat, color = id), width = 0.15, 
               height = 0.15, show.legend = FALSE) +
   theme_void() +
