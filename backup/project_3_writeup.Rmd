@@ -150,7 +150,8 @@ ggplot() +
   geom_sf(data = swz_mk, fill = "lightskyblue1") +
   geom_sf(data = urban_areas, fill = "maroon", color = "maroon") +
   geom_sf(data = urban_centroids) +
-  geom_sf(data = mk_voronoi_adm2, alpha = 0, color = "black")
+  geom_sf(data = mk_voronoi_adm2, alpha = 0, color = "black") +
+  geom_sf(data = swz_mk, color = "khaki", fill = NA, size = 1.2)
 ```
 
 ```{r mk-in-eswatini}
@@ -174,7 +175,7 @@ mk_pred_flows %>%
   kable()
 ```
 
-It's worth mentioning that the coding for the nodes is not the same as the original, district-level node coding. In total there are 144 cells in this matrix, but only 25 cells are included above. We should immediately be suspicious of these results: many of the flows are on the order of 10^4^, but only around 30000 people live in Mkhiweni. <!--TODO: tweak this argument a little (?)--> These flows do not seem reasonable for five year movement in Mkhiweni. It seems that the estimated model parameters don't translate well over vast differences in spatial granularity, which is not that surprising. Certainly, in any form of regression analysis, one should be quite cautious when it comes to predicting values far outside the data set used to estimate the model. Additionally, it seems that our model is too sensitive to differences in distance: when we attempt to extrapolate to much smaller distances, the reduced "friction" in the model cannot be properly balanced by other regressors, and we see wildly inaccurate estimates. Still, it is interesting to see these results and it is important to understand the limitations of the methodology.
+It's worth mentioning that the coding for the nodes is not the same as the original, district-level node coding. In total there are 144 cells in this matrix, but only 25 cells are included above. We should immediately be suspicious of these results: many of the flows are on the order of 10^4^, but only around 30000 people live in Mkhiweni. These flows do not seem reasonable for five year movement in Mkhiweni. It seems that the estimated model parameters don't translate well over vast differences in spatial granularity, which is not that surprising. Certainly, in any form of regression analysis, one should be quite cautious when it comes to predicting values far outside the data set used to estimate the model. Additionally, it seems that our model is too sensitive to differences in distance: when we attempt to extrapolate to much smaller distances, the reduced "friction" in the model cannot be properly balanced by other regressors, and we see wildly inaccurate estimates. Still, it is interesting to see these results and it is important to understand the limitations of the methodology.
 
 ## Improving the Model
 
@@ -182,11 +183,13 @@ The district-level gravity model seemed to fit relatively well, indicating that 
 
 To improve the temporal and spatial granularity of the model, we would likely need better data. This is a constant struggle in data science applications to development: we always need better data, but often data collection is infeasible due to the large expense or other factors. So, we can produce a reasonably good gravity model for five-year movement at the district-level for Eswatini, but that seems to be about as far as we can go with this data.
 
-While I didn't produce animations for the predicted movement, this would be relatively easy to do (or _could_ be easy if I didn't hard-code so much). In a more complete analysis, animations for predicted movement would be a nice accompaniment to the model results. In the same vein, integrating elements of the synthetic population from [Project 2](https://emiliolr.github.io/abm/project_2_writeup.html#producing-the-synthetic-population) could allow for interesting simulations that might giive us insight into shifting demographics across Eswatini as agents make long-term movement decisions. Unfortunately, I didn't quite get to the point where I would have brought in the results from Project 2, but it's still interesting to think a about what could've been accomplished if I had had more time!
+While I didn't produce animations for the predicted movement, this would be relatively easy to do (or _could_ be easy if I didn't hard-code so much). In a more complete analysis, animations for predicted movement would be a nice accompaniment to the model results. In the same vein, integrating elements of the synthetic population from [Project 2](https://emiliolr.github.io/abm/project_2_writeup.html#producing-the-synthetic-population) could allow for interesting simulations that might give us insight into shifting demographics across Eswatini as agents make long-term movement decisions. Unfortunately, I didn't quite get to the point where I would have brought in the results from Project 2, but it's still interesting to think a about what could've been accomplished if I had had more time!
 
 # The Code
 
 If you're interested in checking out the code that I used to produce this analysis, I've linked to the different scripts. A disclaimer: these scripts are pretty messy, so don't expect too much from them!
 
-- [Following along with the vignette]()
+- [Following along with the vignette](https://github.com/emiliolr/abm/blob/master/backup/basic_gravity_model.R)
+- [Producing the Voronoi tessellation for Mkhiweni](https://github.com/emiliolr/abm/blob/master/backup/movement_modeling.R)
+- [Producing the gravity model for Eswatini and animating observed flows](https://github.com/emiliolr/abm/blob/master/backup/setting_up_gravity_model.R)
 
