@@ -13,6 +13,7 @@ library(tidyverse)
 library(sf)
 library(knitr)
 
+load("for_gravity_model.RData")
 load("for_P3_writeup.RData")
 
 knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.align = "center", echo = FALSE, out.width = "70%")
@@ -115,17 +116,24 @@ With these practical results in minds, I moved next towards the comprehensive pa
 
 # Producing a Gravity Model for Eswatini
 
-<!--
-TODO:
-  -discuss the use of this OD matrix and how it leads into the estimation of a gravity model
-    -talk a little bit about diff estimation procedures (ddm/ppml)...?
-  -visually compare fitted values w/actual movement in some way
-    -talk about adding NTL and population as additional regressors
--->
+At this point, I had everything that I needed to produce a gravity model for Eswatini at the district level. Before estimating the model, I first brought in a few additional variables as potential push/pull factors: nighttime lights and the population for each district. For both of these, I used WorldPop raster data and extracted/aggregated to each district. The final data set (with all twelve origin/destination combinations) is included below ("ntl" is used as an abbreviation for nighttime lights).
 
-At this point, I had everything that I needed to produce a gravity model for Eswatini at the district level. Before estimating the model, I first brought in a few additional variables as potential push/pull factors: night time lights and the population for each district. <!--WORK FROM HERE NEXT!-->
+```{r district-data-set}
+final_flow_data %>% 
+  dplyr::select(-ISO) %>%
+  rename(origin_district = NODEI, destination_district = NODEJ, migration_flows = PrdMIG, distance = dist) %>%
+  kable()
+```
 
-# Predicting Movement Flows in Mkhiweni
+This data was then used as input into a Poisson Pseudo Maximum Likelihood (PPML) gravity model, using the implementation in the [`gravity`](https://pacha.dev/gravity/articles/crash-course-on-gravity-models.html#poisson-pseudo-maximum-likelihood-ppml) library. I also tried a Double Demeaned (DDM) model, but the results were not easily interpretable because of the transformations applied in the estimation. Below, I've included a matrix of the model residuals for PPML to show that the fit is reasonably good (comparison with the OD matrix from Section 2 might be needed to properly interpret these results).
+
+```{r resid-matrix}
+resid_matrix %>% kable()
+```
+
+At this point, we should be a little worried about skewed results in our PPML model given that there aren't many data points to estimate the model on. Additionally, distance is really the only strong predictor amongst our pool of variables, which may also cause issues. Still, this seems to be a good fit at the district level at least.
+
+# Attempting to Predict Movement Flows in Mkhiweni
 
 <!--
 TODO: 
@@ -133,6 +141,13 @@ TODO:
   -show the pred movement using the national level gravity model - show OD matrix (?)
     -talk about procedure for adding in NTL/population at this level (using voronoi polys as boundaries)
 -->
+
+Before applying the national level model to Mkhiweni (my selected second-level administrative unit), I produced a Voronoi tessellation of using the centroids of the de facto urban areas in Mkhiweni. This acts as a clean, but somewhat artificial, partition of the space within Mkhiweni.
+
+```{r voronoi-plot}
+
+```
+
 
 ## Improving the Model
 
