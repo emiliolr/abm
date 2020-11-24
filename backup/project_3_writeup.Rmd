@@ -33,17 +33,15 @@ write_matex <- function(x) { #a solution for producing Latex matrices (from stac
 }
 ```
 
-<!--TODO: clean up writing + do general editing on the deliverable-->
-
 # Outline 
 
-In this project, I used first level administrative subdivision movement data to produce a national-level gravity model for internal migration flows in Eswatini. Then, I used this model to predict movement flows between urban areas for my selected lower-level administrative subdivision, Mkhiweni. I also produced a number of animations to visualize observed movement. In this deliverable, I summarize these procedures and comment on how this analysis could be extended and improved.
+In this project, I used first level administrative subdivision movement data to produce a national-level gravity model for internal migration flows in Eswatini. Then, I attempted to use this model to predict movement flows between urban areas for my selected lower-level administrative subdivision, Mkhiweni. I also produced a number of animations to visualize agent movement. In this deliverable, I summarize these procedures and comment on how this analysis could be extended and improved.
 
 # Working with Movement Data
 
-[WorldPop](https://www.worldpop.org/) has curated a variety of data for many low and middle income countries (LMICs). For this project, I used [district-level movement data](https://www.worldpop.org/geodata/summary?id=1281) for Eswatini as the basis for my gravity model. This data was produced by applying an unconstrained gravity type spatial interaction model to World Health Organization data for sub-national movement from 2015. Movement is at a five year temporal resolution for this data set.
+[WorldPop](https://www.worldpop.org/) has curated a variety of data for many low and middle income countries (LMICs). For this project, I used [district-level movement data](https://www.worldpop.org/geodata/summary?id=1281) for Eswatini as the basis for my gravity model. This data was produced by applying an unconstrained gravity type spatial interaction model to World Health Organization data for sub-national movement from 2010 to 2015 (so, movement is at a five year temporal resolution for this data set).
 
-After reading in the data, I spent several days exploring and visualizing the data. In total, flows in the data sum out to $\approx$ 15330, i.e., WorldPop projects that 15330 people moved from one district to another in this five year period. Next, I produced an origin-destination matrix (OD matrix) that summarizes movement between districts as observed in the WorldPop data.
+After obtaining the data, I spent several days just exploring and visualizing the data. In total, flows in the data sum out to $\approx$ 15330, i.e., WorldPop projects that 15330 people moved from one district to another in this five year period. Next, I produced an origin-destination matrix (OD matrix) to summarize movement between districts as observed in the WorldPop data.
 
 ```{r od-matrix, results = "asis"}
 real_OD_matrix <- OD_matrix %>% as.matrix()
@@ -54,7 +52,7 @@ real_OD_matrix %>%
   write_matex()
 ```
 
-First, the coding scheme for the districts (which I will stick to throughout this write-up) is: 1 - Hhohho; 2 - Lubombo; 3 - Manzini; 4 - Shiselweni. In this matrix (and in all matrices in this deliverable), rows indicate the origin node and columns indicate the destination node. For example, in the OD matrix above, the cell corresponding to row 3 and column 4 shows the flows from Manzini to Shiselweni (about `r real_OD_matrix[3, 4] %>% floor()` people). There are zeroes along the diagonal as we are interested only in the flows _between_ districts. I have included a plot showing the coding scheme below, along with the centroid locations for each district.
+There are a few things to note here. First, the coding scheme for the districts (which I will stick to throughout this write-up) is: 1 - Hhohho; 2 - Lubombo; 3 - Manzini; 4 - Shiselweni. In this matrix (and in all matrices in this deliverable), rows indicate the origin node and columns indicate the destination node. For example, in the OD matrix above, the cell corresponding to row 3 and column 4 shows the flows from Manzini to Shiselweni (about `r real_OD_matrix[3, 4] %>% floor()` people). Notice also that there are zeroes along the diagonal as we are interested only in the flows _between_ districts. I have included a plot showing the coding scheme below, along with the centroid locations for each district.
 
 ```{r coding-scheme}
 worldpop_centroid_data <- read_sf("Data/SWZ_5yrs_InternalMigFlows_2010/SWZ_AdminUnit_Centroids/SWZ_AdminUnit_Centroids.shp")
@@ -68,7 +66,7 @@ ggplot() +
   geom_sf_text(data = worldpop_centroid_data, mapping = aes(label = IPUMSID), nudge_y = -0.05)
 ```
 
-In addition to the OD matrix, I created a matrix that included the distances in meters between all district _centroids_, which is generally the standard procedure for calculating distance between region when inputting into a gravity model (more on this later).
+In addition to an OD matrix, I created a matrix that summarized the distances in meters between all district _centroids_, which is generally the standard procedure for calculating distance between regions when using a gravity model (more on this later).
 
 ```{r dist-matrix, results = "asis"}
 real_dist_matrix <- dist_matrix %>% as.matrix()
@@ -79,44 +77,54 @@ real_dist_matrix %>%
   write_matex()
 ```
 
-Notice that this matrix is symmetric while the OD matrix is not. In the OD matrix, movement from district $i$ to district $j$ is not necessarily equal to movement from district $j$ to district $i$. However, distance between two districts doesn't change based on which node you start from, hence the symmetric nature of the second matrix.
+Notice that this matrix is symmetric while the OD matrix is not. In the OD matrix, movement from district $i$ to district $j$ is not necessarily equal to movement from district $j$ to district $i$. However, distance between two districts doesn't change based on which node you start from, hence the symmetric nature of the distance matrix.
 
-Finally, I produced a plot visualizing the information contained in the OD matrix. The crosses represent the quantity of in-flows and the filled-in circles represent the quantity of out-flows.
+Finally, I produced a plot visualizing the information contained in the OD matrix. The crosses represent the quantity of in-flows (where that node is the destination) and the filled-in circles represent the quantity of out-flows (where that node is the origin).
 
 ```{r in-out-flows}
-ggplot() + #leaving/coming into the centroid
+summarized_flows <- tibble(
+  in_flows = origin_summarized$migration,
+  out_flows = destinations_summarized$migration,
+  geometry = destinations_summarized$geometry
+) 
+
+summarized_flows <- summarized_flows %>% 
+  pivot_longer(!geometry, names_to = "type", values_to = "flow") %>%
+  mutate(type = type %>% str_replace("_", "-"))
+st_geometry(summarized_flows) <- summarized_flows$geometry
+
+ggplot() +
   theme_void() +
   geom_sf(data = swz_adm1, fill = "lightskyblue1", color = "black") +
-  geom_sf(data = origin_summarized, mapping = aes(fill = migration), size = 5, shape = 21, 
-          color = "lightskyblue1") +
-  geom_sf(data = destinations_summarized, mapping = aes(color = migration), size = 6, shape = 13, 
-          fill = NA, show.legend = FALSE) +
+  geom_sf(data = summarized_flows, mapping = aes(color = flow, shape = type, size = type, fill = flow)) +
+  scale_shape_manual(values = c(21, 13)) +
+  scale_size_manual(values = c(4, 6)) +
   scale_color_viridis_c(option = "cividis") +
   scale_fill_viridis_c(option = "cividis") +
-  labs(fill = "Migration Flows")
+  labs(shape = NULL, size = NULL, fill = "Migration Flows", color = "Migration Flows")
 ```
 
 ## Animating Movement
 
-To make these visualizations of movement more visually interesting, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple animation where only one agent moved from the centroid of Hhhohho to the centroid of Lubombo. 
+To make these visualizations of movement a little more visually interesting, I used the `gganimate` package to animate movement flows as observed in the data. First, I produced a simple animation with only one agent moving from the centroid of Hhhohho to the centroid of Lubombo. 
 
 ```{r basic-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_person.gif")
 ```
 
-Then, I worked adding more agents and varying the movement speeds. Having variable movement speeds wasn't really necessary for the final product, but it was a good exercise in working with `gganimate`.
+Then, I worked on adding more agents and varying the movement speeds. Having variable movement speeds wasn't really necessary, but it was a good exercise in working with `gganimate`.
 
 ```{r 2nd-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_many_people.gif")
 ```
 
-Next, I had agents move to/from all centroids. This required quite a bit more data wrangling and spatial computation than the previous two animations.
+Next, I had agents move to and from all centroids. This required quite a bit more data wrangling and spatial computation than the previous two animations. While certainly more visually interesting than the previous two animations, the animation is a little stiff because movement is only between the district centroids. 
 
 ```{r 3rd-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_people_all_districts.gif")
 ```
 
-And finally, I increased the number of agents moving from district to district. Unfortunately, I couldn't figure out how to do this in an entirely robust manner, so I ended having to hard-code quite a few things. Still, as a proof of concept, this is a pretty neat animation! To produce this animation, I used `ggplot::geom_jitter()` to displace the agents and give them each their own movemtn path from district to district. Then, I resized the number of agents proportionally to the match the magnitude of observed flows in the WorldPop data set (this is animation is at $\frac{1}{25}$ scale). To make the hard-coding a little easier, I focused on only the out-flows from Hhhohho.
+Finally, I increased the number of agents moving from district to district. Unfortunately, I couldn't figure out how to do this in an entirely robust manner, so I ended having to hard-code quite a few things. Still, as a proof of concept, this is a pretty neat animation! To produce this animation, I used `ggplot2::geom_jitter()` to displace the agents and give them each their own movement path from district to district. Then, I scaled the number of agents proportionally to match the magnitude of observed flows from the WorldPop data set (this is animation is at $\frac{1}{25}$ scale). To make the hard-coding a little easier, I focused on only the out-flows from Hhhohho.
 
 ```{r 4th-move-anim, out.width = "50%"}
 knitr::include_graphics("Figures/moving_people_lots_of_people.gif")
@@ -132,13 +140,13 @@ As a first exercise in working with gravity models, I followed along with a shor
 
 This is a really neat way of modeling migration. Basically, we apply the equation for gravity between two masses to migration flows, noticing that there are certain push or pull factors ($P_i$ and $P_j$), as well as a certain "friction" factors that might hinder movement between two locations ($D_{ij}$). This basic model can be extended to include more push or pull factors, then being considered a gravity-type spatial interaction model (GTSIM).
 
-In the vignette, we used commuter movement data between London boroughs. Notice that this movement is at a much finer temporal granularity than the WorldPop data for Eswatini. The key difference is the London data contains short-term movement decisions (based on work-related commutes), whereas the Eswatini data represents much longer-term movement decisions. The vignette covered how to wrangle the data into the appropriate form, how to produce an OD matrix, and different ways to approach the gravity model. It showed that, while it is possible to achieve reasonably good results when just picking the model parameters using intuition ($\alpha$, $\beta$, $\gamma$), we can improve the accuracy by estimating the parameters using the data and leveraging a Poisson regression model. From the less refined to the more refined approach, we saw an improvement in the $R^2$ from 0.503 to 0.673.
+In the vignette, we used commuter movement data between London boroughs. Notice that this movement is at a much finer temporal granularity than the WorldPop data for Eswatini. The key difference is the London data contains short-term movement decisions (based on work-related commutes), whereas the Eswatini data represents much longer-term movement decisions. Differences in the data aside, the vignette covered the basics of applying gravity models: how to wrangle the data into the appropriate form, how to produce an OD matrix, and different ways to find key parameters. It showed that, while it is possible to achieve reasonably good results when just picking the model parameters using intuition ($\alpha$, $\beta$, $\gamma$), we can improve the accuracy by estimating the parameters using the data and leveraging a Poisson regression model. From the less refined to the more refined approach, we saw an improvement in the R^2^ from 0.503 to 0.673.
 
-With these practical results in minds, I moved next towards the comprehensive paper _Modeling internal migration flows in sub-Saharan Africa using census microdata_ from Garcia et al (see the article [here](https://academic.oup.com/migration/article/3/1/89/2413406)). In this paper, the authors explore the utility of GTSIMs for predicting domestic migration flows in Sub-Saharan Africa, exploring the potential for cross-country and cross-temporal applicability. They included a suite of push/pull factors in their analysis, including urban population, whether or not the locations were contiguous, and the proportion of the population that was male. They found that, while the GTSIM performed very well for certain countries (i.e., Senegal and Ghana), it performed consistently poorly in others (i.e., Malawi). Likewise, in their exploration of cross- country and temporal application, they found some possibility of strong prediction in varied settings, but only for those countries whose movement was well predicted with their own GTSIM. This implies that GTSIMs do perform well generally, but there are likely certain intrinsic elements that cause GTSIMs to systematically perform poorly on certain countries.
+With these practical results in minds, I moved next towards the comprehensive paper _Modeling internal migration flows in sub-Saharan Africa using census microdata_ from Garcia et al. (see the article [here](https://academic.oup.com/migration/article/3/1/89/2413406)). In this paper, the authors explore the utility of GTSIMs for predicting domestic migration flows in Sub-Saharan Africa, exploring the potential for cross-country and cross-temporal applicability. They included a suite of push/pull factors in their analysis, including urban population, whether or not the locations were contiguous, and the proportion of the population that was male. They found that, while the GTSIM performed very well for certain countries (i.e., Senegal and Ghana), it performed consistently poorly in others (i.e., Malawi). Likewise, in their exploration of cross-country and cross-temporal application, they found some possibility of strong prediction in these varied settings, but only for those countries whose movement was well predicted with their own GTSIM. This implies that GTSIMs do perform well generally, but there are likely certain intrinsic elements that cause GTSIMs to systematically perform poorly on certain countries.
 
 # Producing a Gravity Model for Eswatini
 
-At this point, I had everything that I needed to produce a gravity model for Eswatini at the district level. Before estimating the model, I first brought in a few additional variables as potential push/pull factors: nighttime lights and the population for each district. For both of these, I used WorldPop raster data and extracted/aggregated to each district. The final data set (with all twelve origin/destination combinations) is included below ("ntl" is used as an abbreviation for nighttime lights).
+At this point, I had everything that I needed to produce a gravity model for Eswatini at the district level. Before estimating the model, I first brought in a few additional variables as potential push/pull factors: nighttime lights and the population for each district. For both of these, I used WorldPop raster data and extracted/aggregated to each district. The final data set (with all twelve possible origin/destination combinations) is included below ("ntl" is used as an abbreviation for nighttime lights).
 
 ```{r district-data-set}
 final_flow_data %>% 
@@ -148,7 +156,7 @@ final_flow_data %>%
   kable_styling(bootstrap_options = c("striped", "hover"))
 ```
 
-This data was then used as input into a Poisson Pseudo Maximum Likelihood (PPML) gravity model, using the implementation in the [`gravity`](https://pacha.dev/gravity/articles/crash-course-on-gravity-models.html#poisson-pseudo-maximum-likelihood-ppml) library. I also tried a Double Demeaning (DDM) model, but the results were not easily interpretable because of the transformations applied in the estimation. Below, I've included a matrix of the model residuals for PPML to show that the fit is reasonably good (comparison with the OD matrix from Section 2 might be needed to properly interpret these results).
+This data was then used as input into a Poisson Pseudo Maximum Likelihood (PPML) gravity model, using the implementation in the [`gravity`](https://pacha.dev/gravity/articles/crash-course-on-gravity-models.html#poisson-pseudo-maximum-likelihood-ppml) library. I also tried a Double Demeaning (DDM) model, but the results were not as easily interpretable because of the transformations applied during the estimation procedure. Below, I've included a matrix of the model residuals for the PPML model to show that the fit is reasonably good (comparison with the OD matrix from Section 2 might be needed to properly interpret these results).
 
 ```{r resid-matrix, results = "asis"}
 real_resid_matrix <- resid_matrix %>% dplyr::select(-origin_node) %>% as.matrix()
@@ -159,7 +167,7 @@ real_resid_matrix %>%
   write_matex()
 ```
 
-For comparison, I've also included a matrix of residuals for a PPML model using only distance as a regressor.
+For comparison, I've also included a matrix of residuals for a PPML model using distance as the sole regressor.
 
 ```{r resid-matrix-worse, results = "asis"}
 real_resid_matrix_worse <- resid_matrix_worse %>% dplyr::select(-origin_node) %>% as.matrix()
@@ -170,20 +178,19 @@ real_resid_matrix_worse %>%
   write_matex()
 ```
 
-Certainly, a quick glance at these two matrices seems to suggest that the PPML model with additional regressors (nighttime lights and population) performs better with this data. To further explore the differences in performance, I calculated the root mean squared error (RMSE) for each model: for the model using only distance, a RMSE of $\approx$ 267.5 was achieved; in the model with additional regressors, a RMSE of $\approx$ 102.8 was achieved. So, the additional regressors seem to add an extra level of sensitivity to the model's prediction, leading to improved estimates. At this point, we should be a little worried about skewed results in our PPML model given that there aren't many data points to estimate the model on. That is, we may have overfit to our relatively few data points here. Additionally, distance is the strongest predictor amongst our pool of variables (all but distance have very small coefficient estimates), which may also cause issues. Still, this seems to be a good fit at the district level at least.
+Certainly, a quick glance at these two matrices suggests that the PPML model with additional regressors (nighttime lights and population) performs better with this data. To further explore the differences in performance, I calculated the root mean squared error (RMSE) for each model: for the model using only distance, a RMSE of $\approx$ 267.5 was achieved; in the model with additional regressors, a RMSE of $\approx$ 102.8 was achieved. So, the additional regressors seem to add an extra level of sensitivity to the model's prediction, leading to improved estimates. At this point, we should be a little worried about skewed results in our PPML model given that there aren't many data points to estimate the model on. That is, we may have overfit to our relatively few data points here which would hinder the generalizability of our model. Additionally, distance is the strongest predictor amongst our pool of variables (all but distance have very small coefficient estimates), which may also cause issues. Still, this gravity model seems to be a pretty good fit at the district level.
 
 # Attempting to Predict Movement Flows in Mkhiweni
 
-Before applying the national level model to Mkhiweni (my selected second-level administrative unit), I produced a Voronoi tessellation using the centroids of the twelve de facto urban areas in Mkhiweni (these are from [Project 1](https://emiliolr.github.io/abm/description_of_settlements.html)). This acts as a clean, but somewhat artificial, partition of the space within Mkhiweni. I have included an additional plot as a reminder of where Mkhiweni is positioned within Eswatini.
+Before applying the district level model to Mkhiweni (my selected second-level administrative unit), I produced a Voronoi tessellation using the centroids of the twelve de facto urban areas in Mkhiweni (these are from [Project 1](https://emiliolr.github.io/abm/description_of_settlements.html)). This acts as a clean, but somewhat artificial, partition of the space within Mkhiweni. I have included an additional plot as a reminder of where Mkhiweni is positioned within Eswatini.
 
 ```{r voronoi-plot}
 ggplot() + 
   theme_void() +
-  geom_sf(data = swz_mk, fill = "lightskyblue1") +
+  geom_sf(data = swz_mk, fill = "lightskyblue2") +
   geom_sf(data = urban_areas, fill = "maroon", color = "maroon") +
   geom_sf(data = urban_centroids) +
-  geom_sf(data = mk_voronoi_adm2, alpha = 0, color = "black") +
-  geom_sf(data = swz_mk, color = "khaki", fill = NA, size = 1.2)
+  geom_sf(data = mk_voronoi_adm2, alpha = 0, color = "black") 
 ```
 
 ```{r mk-in-eswatini}
@@ -191,12 +198,13 @@ swz_adm2 <- read_sf("Data/gadm36_SWZ_shp/gadm36_SWZ_2.shp")
 
 ggplot() +
   theme_void() +
-  geom_sf(data = swz_adm2, fill = "lightskyblue1", color = "black") +
-  geom_sf(data = swz_mk, fill = "khaki", color = "black", size = 0.8) +
+  geom_sf(data = swz_adm2, fill = "lightskyblue1", color = "black", alpha = 0.5) +
+  geom_sf(data = swz_adm1, fill = NA, color = "black", size = 0.9) +
+  geom_sf(data = swz_mk, fill = "lightskyblue2", color = "black") +
   geom_sf_text(data = swz_mk, mapping = aes(label = NAME_2), size = 2.5, nudge_x = 0.02, fontface = "bold")
 ```
 
-Notice that the Voronoi polygons don't perfectly partition the urban areas: these polygons are created based on the _centroids_ for each urban area. At this point, I made the decision to use the Voronoi polygons as the polygons to extract and aggregate nighttime lights and population to (as opposed to the urban polygons themselves). This was probably not the correct decision to make here, but I wanted to use the Voronoi polygons in a meaningful way. Also, nighttime lights and population aren't strong predictors, so the difference here in terms of prediction accuracy is likely negligible. So, I collected all of the necessary variables and used the fitted PPML model to predict flows between urban areas in Mkhiweni. An excerpt of the predicted OD matrix for the twelve urban areas is included below. 
+Notice that the Voronoi polygons don't perfectly partition the urban areas: these polygons are based on the _centroids_ for each urban area. At this point, I made the decision to use the Voronoi polygons as the geometries to extract and aggregate nighttime lights and population to (as opposed to the urban polygons themselves). This was probably not the correct decision to make here, but I wanted to use the Voronoi polygons in a meaningful way. Also, nighttime lights and population aren't very strong predictors, so the difference here in terms of prediction accuracy is likely negligible. So, I collected all of the necessary variables and used the fitted PPML model to predict flows between urban areas in Mkhiweni. An excerpt of the predicted OD matrix for the twelve urban areas is included below. 
 
 ```{r mk-pred-flows, include = FALSE}
 mk_pred_matrix <- mk_pred_flows %>% 
@@ -223,21 +231,22 @@ $$\begin{bmatrix}
 \vdots & \vdots & \vdots & \vdots & \vdots & \ddots
 \end{bmatrix}$$
 
-It's worth mentioning that the coding for the nodes is not the same as the original, district-level node coding. In total there are 144 cells in this matrix, but only 25 cells are included above. We should immediately be suspicious of these results: many of the flows are on the order of 10^4^, but only around 30000 people live in Mkhiweni. These flows do not seem reasonable for five year movement in Mkhiweni. It seems that the estimated model parameters don't translate well over vast differences in spatial granularity, which is not that surprising. Certainly, in any form of regression analysis, one should be quite cautious when it comes to predicting values far outside the data set used to estimate the model. Additionally, it seems that our model is too sensitive to differences in distance: when we attempt to extrapolate to much smaller distances, the reduced "friction" in the model cannot be properly balanced by other regressors, and we see wildly inaccurate estimates. Still, it is interesting to see these results, but it is also important to understand the limitations of the methodology.
+It's worth mentioning that the coding for the nodes is not the same as the original, district-level node coding--these are the urban areas within Mkhiweni, not the districts of Eswatini. In total there are 144 cells in this matrix, but only 25 cells are included above. We should immediately be suspicious of these results: many of the flows are on the order of 10^4^, but only around 30000 people live in Mkhiweni. These flows do not seem reasonable for five year movement in Mkhiweni. It seems that the estimated model parameters don't translate well over vast differences in spatial granularity, which is not that surprising. Certainly, in any form of regression analysis, one should be quite cautious when attempting to make predictions using values far outside the range observed in the data set used for estimation. Additionally, it seems that our model is too sensitive to differences in distance: when we attempt to extrapolate to much smaller distances, the reduced "friction" in the model cannot be properly balanced by our other regressors, so we see wildly inaccurate estimates. In the end, it is interesting to see these results, but it is also important to be aware of the limitations in the methodology.
 
 ## Improving the Model
 
-The district-level gravity model seemed to fit relatively well, indicating that there is potential utility in using a GTSIM for movement prediction in Eswatini. To refine these predictions, there are a number of things we could do. Collecting a stronger group of predictors would help pin down the regressors most important to Eswatini in particular; Garcia et al. find strength in quite a few predictors that I didn't manage to include in my analysis. Additionally, since Garcia et al. find that GTSIMs can be applied across countries relatively well, it may be worth experimenting with using another country's (perhaps a neighboring country like South Africa, Lesotho, or Mozambique) model with Eswatini. We certainly have seen that the model is not robust enough to traverse vast levels of spatial granularity while still producing reasonable estimates. While moving all the way down to movement in Mkhiweni (a second-level administrative unit) didn't work well, perhaps applying the model to intra-district movement would work better.
+The district-level gravity model seemed to fit relatively well, indicating that there is potential utility in using a GTSIM for movement prediction in Eswatini. To refine these predictions, there are a number of things we could do. Collecting a stronger group of predictors would help pin down the regressors most important in Eswatini; Garcia et al. find strength in quite a few predictors that I didn't manage to include in my analysis (for instance, whether or not two locations are contiguous would be easy to add and would likely greatly enhance model accuracy). Additionally, since Garcia et al. found that GTSIMs can be applied across countries relatively well, it may be worth experimenting with using another country's (perhaps a neighboring country like South Africa, Lesotho, or Mozambique) model with Eswatini. In this analysis, we have seen that the model is not robust enough to traverse vast levels of spatial granularity while still producing reasonable estimates. While moving all the way down to movement in Mkhiweni (a second-level administrative unit) didn't work well, perhaps applying the model to intra-district movement would work better.
 
-To improve the temporal and spatial granularity of the model, we would likely need better data. This is a constant struggle in data science applications to development: we always need better data, but often data collection is infeasible due to the large expense or other factors. So, we can produce a reasonably good gravity model for five-year movement at the district-level for Eswatini, but that seems to be about as far as we can go with this data.
+To improve the temporal and spatial granularity of the model, we would likely need better data. This is a constant struggle in data science applications to development: we always need better data, but often data collection is infeasible due to monetary issues or other miscellaneous factors. So, we can produce a reasonably good gravity model for five-year movement at the district-level for Eswatini, but that seems to be about as far as we can go with this data.
 
-While I didn't produce animations for the predicted movement, this would be relatively easy to do (or _could_ be easy if I didn't hard-code so much). In a more complete analysis, animations for predicted movement would be a nice accompaniment to the model results. In the same vein, integrating elements of the synthetic population from [Project 2](https://emiliolr.github.io/abm/project_2_writeup.html#producing-the-synthetic-population) could allow for interesting simulations that might give us insight into shifting demographics across Eswatini as agents make long-term movement decisions. Unfortunately, I didn't quite get to the point where I would have brought in the results from Project 2, but it's still interesting to think a about what could've been accomplished if I had had more time!
+While I didn't produce additional animations to pair with the predicted movement, this would be relatively easy to do (or _could_ be easy if I didn't hard-code so much). In a more complete analysis, animations for predicted movement would be a nice accompaniment to the model results. In the same vein, integrating elements of the synthetic population produced in [Project 2](https://emiliolr.github.io/abm/project_2_writeup.html#producing-the-synthetic-population) could allow for interesting simulations that might give us insight into shifting demographic characteristics across Eswatini as agents make long-term movement decisions. Unfortunately, I didn't quite get to the point where I could have brought in the results from Project 2, but it's still interesting to think about what could have been accomplished if I had had a little more time!
 
 # The Code
 
-If you're interested in checking out the code that I used to produce this analysis, I've linked to the different scripts. A disclaimer: these scripts are pretty messy, so don't expect too much from them!
+Below, I've linked to the different scripts that I produced for this project. _A disclaimer_: these scripts are pretty messy, so don't expect too much from them!
 
 - [Following along with the vignette](https://github.com/emiliolr/abm/blob/master/backup/basic_gravity_model.R)
 - [Producing the Voronoi tessellation for Mkhiweni](https://github.com/emiliolr/abm/blob/master/backup/movement_modeling.R)
 - [Producing the gravity model for Eswatini and animating observed flows](https://github.com/emiliolr/abm/blob/master/backup/setting_up_gravity_model.R)
+- [The R Markdown file that is used to render this page]()
 
