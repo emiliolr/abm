@@ -1,0 +1,81 @@
+---
+title: "Classic and Influence Majority Rules in Python with Mesa"
+author: "Emilio Luz-Ricca"
+output:
+  pdf_document: default
+bibliography: citations.bib
+csl: science.csl
+link-citations: true
+---
+
+```{r setup, include = FALSE}
+library(tidyverse)
+library(latex2exp)
+library(igraph)
+library(RColorBrewer)
+
+knitr::opts_chunk$set(echo = FALSE, fig.align = "center", out.width = "70%", message = FALSE, warning = FALSE)
+```
+
+## Introduction
+
+This past winter break, I have spent some time reading about opinion dynamics on networks and agent-based modeling (ABM). I have also begun to acquaint myself with the python ABM framework `Mesa`. I thought that it might be nice to put everything together in a short write-up explaining the methodology and explaining some basic results.[^1]
+
+[^1]: Consequently, this was also a good opportunity to play around with the new R Markdown features.
+
+## The Model
+
+In writing this code, I followed the methodology of @nguyen_dynamics_2020. They define two types of majority rules: the classic majority rule (CMR) and the influence majority rule (IMR). The ABM for both models contains $N$ agents and $T$ time steps. Additionally, each agent is placed at a vertex in a graph $G = (V, E)$, where each $v \in V$ is a vertex in $G$ and $E$ is the collection of edges. At each time $t \le T$, the opinion for the agent at node $v$ is $O_v(t) \in \{0,1\}$. For all agents, $O_v(0)$ is randomly chosen from $\{0,1\}$ with equal probability.
+
+In each subsequent time step, the agents are activated in a random order (`Mesa`'s `RandomActivation()` scheduler). When an agent is activated, they assume a new opinion using either the CMR or the IMR. In the CMR, agents choose the most frequent opinion amongst their neighbors. In the IMR, the agent weights the opinion of their neighbors by their degree and chooses the most frequent weighted opinion. If $\eta(v)$ represents all of the neighbors of a particular vertex, i.e., all of the vertices that share an edge with $v$, and $k_v = |\eta(v)|$ is the degree of $v$ then the CMR and IMR can be represented mathematically as:
+
+```{=tex}
+\begin{align*}
+\text{CMR}&: \quad O_v(t+1) = \text{argmax}_{o \in \{0,1\}}|\{u \;|\; O_u(t) = o, \; u \in \eta(v)\}|\\
+\text{IMR}&: \quad O_v(t+1) = \text{argmax}_{o \in \{0,1\}}\sum_{w \in \{u \;|\; O_u(t) = o, \; u \in \eta(v)\}}\limits k_w
+\end{align*}
+```
+While I won't attempt to pursue a mathematical analysis of the dynamics of this system, I find that the more ways that an agent-based model is explained (in words, mathematically, in pictures, etc.), the better. Additionally, the notation introduced in @nguyen_dynamics_2020 provides a compact method for describing key model elements.
+
+## Basic Results
+
+I then tried to produce some basic results and visualizations. I also created an interactive visualization with `Mesa`'s visuaization framework, which is available at **GITHUB** **LINK**. <!--TODO: replicate a graph viz?-->
+
+I attempted to reproduce the first plot from @nguyen_dynamics_2020, but wasn't able to run simulations at quite the same capacity as they did. In this plot, $F_0(t)$ is the fraction of agents that hold opinion $0$ at time $t$. As you can see, opinion $0$ begins as the minority opinion ($F_0(0) = 0.4$) by design to show how a significantly minority opinion is quickly overtaken when the average degree, $\langle k \rangle$, is sufficiently large.
+
+```{r figure-1, fig.cap = "Fraction of 0-opinion agents over time. Results are averaged over $50$ model iterations with $\\langle k \\rangle = 5$ on an Erdős-Renyi network with $N = 1000$. The band represents the standard deviation."}
+data <- read_csv("figure_1_data.csv")
+for_plot <- data %>%
+  mutate(time_step = rep(0:60, 50), opinion_0_prop = opinion_0_ct / 1000) %>%
+  filter(time_step <= 20) %>%
+  group_by(time_step) %>%
+  summarize(mean_0 = mean(opinion_0_prop), sd_0 = sd(opinion_0_prop))
+
+ggplot(for_plot, aes(x = time_step, y = mean_0)) +
+  theme_bw() +
+  geom_ribbon(aes(ymin = mean_0 - sd_0, ymax = mean_0 + sd_0), fill = "grey60", alpha = 0.5) +
+  geom_line(color = "blue", size = 0.9) +
+  labs(y = TeX("F_0(t)"), x = "time step") +
+  scale_x_continuous(expand = expansion(mult = 0.01)) +
+  theme(panel.grid.minor = element_blank())
+```
+
+Finally, I produced a visualization showing how opinion diversity continue even in the steady-state under the CMR. In this particular simulation, I used $N = 100$ and $\langle k \rangle = 3$, which is also quite different from the paper. This simulation ran for $T = 100$ steps, which is more than enough steps to reach a steady-state. This plot is quite different from those included in the paper, which are much nicer and admittedly a little more clear. However, for my first time interacting with network visualization tools in `R` (I used the `igraph` package), I think this is a pretty nice result.
+
+```{r graph-1}
+G <- read_graph("terminal_graph.gml", format = "gml") #reading in the network
+pal <- brewer.pal(length(unique(V(G)$group)), "Dark2") #creating a pallette based on group
+deg <- degree(G)
+
+plot(G, vertex.size = deg * 0.8, vertex.label = NA, vertex.color = pal[as.numeric(as.factor(vertex_attr(G, "agent")))])
+```
+
+## Next Steps
+
+There are quite a few articles that extend these principles quite nicely. In the future, I would like to try to approach models as introduced in [@sociali; @nguyen2020; @yu2017].
+
+\newpage
+
+## References
+
+<!--This bit will be added in after the fact by RMD.-->
