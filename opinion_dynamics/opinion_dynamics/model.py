@@ -15,11 +15,6 @@ def opinion_0_ct(model):
 def opinion_1_ct(model):
     return count_opinion(model, 1)
 
-#TODO:
-#  -resize nodes in the viz by degree, if possible
-#  -see if you can reproduce results from the paper WRT CMR vs. IMR
-#  -go for a continuous opinion space w/consensus-making... A NEW ABM, but adapt this framework!
-
 class OpinionNetwork(Model):
     '''An opinion model with N agents on an Erdos-Renyi network.'''
 
