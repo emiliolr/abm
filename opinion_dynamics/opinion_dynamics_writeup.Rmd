@@ -6,6 +6,7 @@ output:
 bibliography: citations.bib
 csl: science.csl
 link-citations: true
+linkcolor: blue
 ---
 
 ```{r setup, include = FALSE}
@@ -19,15 +20,15 @@ knitr::opts_chunk$set(echo = FALSE, fig.align = "center", out.width = "70%", mes
 
 ## Introduction
 
-This past winter break, I have spent some time reading about opinion dynamics on networks and agent-based modeling (ABM). I have also begun to acquaint myself with the python ABM framework `Mesa`. I thought that it might be nice to put everything together in a short write-up explaining the methodology and explaining some basic results.[^1]
+This past winter break, I spent some time reading about opinion dynamics on networks and agent-based modeling (ABM). I also began to acquaint myself with the python ABM framework `Mesa`. I thought that it might be nice to put all my work from the break together in a short write-up, with an explanation of the methodology and basic results.[^1]
 
-[^1]: Consequently, this was also a good opportunity to play around with the new R Markdown features.
+[^1]: Consequently, this was also a good opportunity to play around with the new R Markdown features, especially the new visual editor.
 
 ## The Model
 
-In writing this code, I followed the methodology of @nguyen_dynamics_2020. They define two types of majority rules: the classic majority rule (CMR) and the influence majority rule (IMR). The ABM for both models contains $N$ agents and $T$ time steps. Additionally, each agent is placed at a vertex in a graph $G = (V, E)$, where each $v \in V$ is a vertex in $G$ and $E$ is the collection of edges. At each time $t \le T$, the opinion for the agent at node $v$ is $O_v(t) \in \{0,1\}$. For all agents, $O_v(0)$ is randomly chosen from $\{0,1\}$ with equal probability.
+In writing this code, I followed the approach of @nguyen_dynamics_2020. They define two types of majority rules: the **classic majority rule** (CMR) and the **influence majority rule** (IMR). The ABM for both models contains $N$ agents and $T$ time steps. Additionally, each agent is placed at a vertex in a graph $G = (V, E)$, where each $v \in V$ is a vertex in $G$ and $E$ is the collection of edges. At each time $t \le T$, the opinion for the agent at node $v$ is $O_v(t) \in \{0,1\}$. For each agent $v$, $O_v(0)$ is randomly chosen from $\{0,1\}$ with equal probability.
 
-In each subsequent time step, the agents are activated in a random order (`Mesa`'s `RandomActivation()` scheduler). When an agent is activated, they assume a new opinion using either the CMR or the IMR. In the CMR, agents choose the most frequent opinion amongst their neighbors. In the IMR, the agent weights the opinion of their neighbors by their degree and chooses the most frequent weighted opinion. If $\eta(v)$ represents all of the neighbors of a particular vertex, i.e., all of the vertices that share an edge with $v$, and $k_v = |\eta(v)|$ is the degree of $v$ then the CMR and IMR can be represented mathematically as:
+In each subsequent time step, the agents are activated in a random order (`Mesa`'s `RandomActivation` scheduler). When an agent is activated, they update their opinion using either the CMR or the IMR. In the CMR, agents choose the most popular opinion among their neighbors (all vertices that share an edge with $v$). In the IMR, the agent weights the opinion of their neighbors by their degree (the "influence" component) and chooses the most frequent weighted opinion. If $\eta(v)$ represents all of the neighbors of a particular vertex and $k_v = |\eta(v)|$ is the degree of $v$ then the CMR and IMR can be represented mathematically as:
 
 ```{=tex}
 \begin{align*}
@@ -35,13 +36,13 @@ In each subsequent time step, the agents are activated in a random order (`Mesa`
 \text{IMR}&: \quad O_v(t+1) = \text{argmax}_{o \in \{0,1\}}\sum_{w \in \{u \;|\; O_u(t) = o, \; u \in \eta(v)\}}\limits k_w
 \end{align*}
 ```
-While I won't attempt to pursue a mathematical analysis of the dynamics of this system, I find that the more ways that an agent-based model is explained (in words, mathematically, in pictures, etc.), the better. Additionally, the notation introduced in @nguyen_dynamics_2020 provides a compact method for describing key model elements.
+While I won't attempt to pursue a mathematical analysis of the dynamics of this system, I find that the more ways that an agent-based model is explained (in words, mathematically, in pictures, etc.), the better. Additionally, the notation introduced in @nguyen_dynamics_2020 provides a compact method for describing many key model elements.
 
 ## Basic Results
 
-I then tried to produce some basic results and visualizations. I also created an interactive visualization with `Mesa`'s visuaization framework, which is available at **GITHUB** **LINK**. <!--TODO: replicate a graph viz?-->
+I then tried to reproduce some basic results and visualizations from @nguyen_dynamics_2020. I also created an interactive visualization with `Mesa`'s visualization framework, which is available in the [GitHub repository](https://github.com/emiliolr/abm/tree/master/opinion_dynamics) that contains all the code for this project.
 
-I attempted to reproduce the first plot from @nguyen_dynamics_2020, but wasn't able to run simulations at quite the same capacity as they did. In this plot, $F_0(t)$ is the fraction of agents that hold opinion $0$ at time $t$. As you can see, opinion $0$ begins as the minority opinion ($F_0(0) = 0.4$) by design to show how a significantly minority opinion is quickly overtaken when the average degree, $\langle k \rangle$, is sufficiently large.
+I first attempted to reproduce Figure 1 from @nguyen_dynamics_2020, but wasn't able to run simulations at quite the same capacity as they did. Here, $F_0(t)$ represents fraction of agents that hold opinion $0$ at time $t$. As you can see, opinion $0$ begins as the minority opinion ($F_0(0) = 0.4$) by design to show how a significantly minority opinion is quickly overtaken when the average degree, $\langle k \rangle$, is sufficiently large. In @nguyen_dynamics_2020, they use $N=20000$, $\langle k \rangle = 25$, and run for $T=60$ steps, but find similar trends.
 
 ```{r figure-1, fig.cap = "Fraction of 0-opinion agents over time. Results are averaged over $50$ model iterations with $\\langle k \\rangle = 5$ on an Erdős-Renyi network with $N = 1000$. The band represents the standard deviation."}
 data <- read_csv("figure_1_data.csv")
@@ -60,9 +61,9 @@ ggplot(for_plot, aes(x = time_step, y = mean_0)) +
   theme(panel.grid.minor = element_blank())
 ```
 
-Finally, I produced a visualization showing how opinion diversity continue even in the steady-state under the CMR. In this particular simulation, I used $N = 100$ and $\langle k \rangle = 3$, which is also quite different from the paper. This simulation ran for $T = 100$ steps, which is more than enough steps to reach a steady-state. This plot is quite different from those included in the paper, which are much nicer and admittedly a little more clear. However, for my first time interacting with network visualization tools in `R` (I used the `igraph` package), I think this is a pretty nice result.
+Then, I produced a visualization showing how opinion diversity can be sustained even in the steady-state under the CMR. In this particular simulation, I used $N = 100$ and $\langle k \rangle = 3$, which is also quite different from the paper. This simulation ran for $T = 100$ steps, which is more than enough steps to reach a steady-state. Because $\langle k \rangle$ is small (i.e., the network is *sparse*), the majority opinion has a much harder time propagating across the network than in a denser network. This plot is quite different from those included in the @nguyen_dynamics_2020, both of which are much nicer and admittedly a little more clear. In particular, the graph generation procedure in @nguyen_dynamics_2020 seems to be slightly different than in my implementation (they seem to allow for a wider range of degrees $k_v$ than I do). Still, I think this is a pretty nice result.
 
-```{r graph-1}
+```{r graph-1, fig.cap = "The steady-state ($T = 100$) of a representative simulation. Vertices are scaled by their degree $k_v$."}
 G <- read_graph("terminal_graph.gml", format = "gml") #reading in the network
 pal <- brewer.pal(length(unique(V(G)$group)), "Dark2") #creating a pallette based on group
 deg <- degree(G)
@@ -72,10 +73,10 @@ plot(G, vertex.size = deg * 0.8, vertex.label = NA, vertex.color = pal[as.numeri
 
 ## Next Steps
 
-There are quite a few articles that extend these principles quite nicely. In the future, I would like to try to approach models as introduced in [@sociali; @nguyen2020; @yu2017].
+There are a few articles that extend these principles quite nicely. In the future, I would like to try to approach models such as those introduced in [@sasahara2020; @yu2017; @nguyen2020]. In particular, I'd like to adapt these models to a setting more indicative of interaction on social media, similar to @sasahara2020, with an emphasis on the formation of extreme communities and the role of social media recommendation algorithms.
 
 \newpage
 
 ## References
 
-<!--This bit will be added in after the fact by RMD.-->
+<!--This bit is added in at rendering by RMD.-->
