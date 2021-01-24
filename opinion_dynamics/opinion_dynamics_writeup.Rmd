@@ -14,6 +14,7 @@ library(tidyverse)
 library(latex2exp)
 library(igraph)
 library(RColorBrewer)
+library(ggraph)
 
 knitr::opts_chunk$set(echo = FALSE, fig.align = "center", out.width = "70%", message = FALSE, warning = FALSE)
 ```
@@ -28,7 +29,7 @@ This past winter break, I spent some time reading about opinion dynamics on netw
 
 In writing this code, I followed the approach of @nguyen_dynamics_2020. They define two types of majority rules: the **classic majority rule** (CMR) and the **influence majority rule** (IMR). The ABM for both models contains $N$ agents and $T$ time steps. Additionally, each agent is placed at a vertex in a graph $G = (V, E)$, where each $v \in V$ is a vertex in $G$ and $E$ is the collection of edges. At each time $t \le T$, the opinion for the agent at node $v$ is $O_v(t) \in \{0,1\}$. For each agent $v$, $O_v(0)$ is randomly chosen from $\{0,1\}$ with equal probability.
 
-In each subsequent time step, the agents are activated in a random order (`Mesa`'s `RandomActivation` scheduler). When an agent is activated, they update their opinion using either the CMR or the IMR. In the CMR, agents choose the most popular opinion among their neighbors (all vertices that share an edge with $v$). In the IMR, the agent weights the opinion of their neighbors by their degree (the "influence" component) and chooses the most frequent weighted opinion. If $\eta(v)$ represents all of the neighbors of a particular vertex and $k_v = |\eta(v)|$ is the degree of $v$ then the CMR and IMR can be represented mathematically as:
+In each subsequent time step, the agents are activated in a random order (`Mesa`'s `RandomActivation` scheduler). When an agent is activated, they update their opinion using either the CMR or the IMR. In the CMR, agents choose the most popular opinion among their neighbors (all vertices that share an edge with $v$). In the IMR, the agent weights the opinion of their neighbors by their degree (the "influence" component) and chooses the most frequent weighted opinion. If $\eta(v)$ represents the set of all neighbors for a particular vertex and $k_v = |\eta(v)|$ is the degree of $v$ then the CMR and IMR can be represented mathematically as:
 
 ```{=tex}
 \begin{align*}
@@ -55,20 +56,35 @@ for_plot <- data %>%
 ggplot(for_plot, aes(x = time_step, y = mean_0)) +
   theme_bw() +
   geom_ribbon(aes(ymin = mean_0 - sd_0, ymax = mean_0 + sd_0), fill = "grey60", alpha = 0.5) +
-  geom_line(color = "blue", size = 0.9) +
+  geom_line(color = "maroon", size = 0.9) +
   labs(y = TeX("F_0(t)"), x = "time step") +
   scale_x_continuous(expand = expansion(mult = 0.01)) +
   theme(panel.grid.minor = element_blank())
 ```
 
-Then, I produced a visualization showing how opinion diversity can be sustained even in the steady-state under the CMR. In this particular simulation, I used $N = 100$ and $\langle k \rangle = 3$, which is also quite different from the paper. This simulation ran for $T = 100$ steps, which is more than enough steps to reach a steady-state. Because $\langle k \rangle$ is small (i.e., the network is *sparse*), the majority opinion has a much harder time propagating across the network than in a denser network. This plot is quite different from those included in the @nguyen_dynamics_2020, both of which are much nicer and admittedly a little more clear. In particular, the graph generation procedure in @nguyen_dynamics_2020 seems to be slightly different than in my implementation (they seem to allow for a wider range of degrees $k_v$ than I do). Still, I think this is a pretty nice result.
+Then, I produced a visualization showing how opinion diversity can be sustained even in the steady-state under the CMR. In this particular simulation, I used $N = 100$ and $\langle k \rangle = 3$, which is also quite different from the paper. This simulation ran for $T = 100$ steps, which is more than enough steps to reach a steady-state. Because $\langle k \rangle$ is small (i.e., the network is *sparse*), the majority opinion has a much harder time propagating across the network than in a denser network. This plot is quite different from those included in the @nguyen_dynamics_2020, both of which are much nicer and admittedly a little more clear. In particular, the graph generation procedure in @nguyen_dynamics_2020 seems to be slightly different than in my implementation (they seem to allow for a wider range of degrees $k_v$ than I do and enforce a minimum degree $k_{\text{min}}$). Still, I think this is a pretty nice result.
 
-```{r graph-1, fig.cap = "The steady-state ($T = 100$) of a representative simulation. Vertices are scaled by their degree $k_v$."}
+```{r graph-1, fig.cap = "The steady-state ($T = 100$) of a representative simulation. Vertices are scaled by their degree $k_v$.", include = FALSE}
 G <- read_graph("terminal_graph.gml", format = "gml") #reading in the network
 pal <- brewer.pal(length(unique(V(G)$group)), "Dark2") #creating a pallette based on group
 deg <- degree(G)
 
 plot(G, vertex.size = deg * 0.8, vertex.label = NA, vertex.color = pal[as.numeric(as.factor(vertex_attr(G, "agent")))])
+```
+
+```{r graph-1.5, fig.cap = "The steady-state ($T = 100$) of a representative simulation. Vertices are scaled by their degree $k_v$.", out.width = "60%"}
+#Using ggraph instead of igraph... a little more familiar
+G <- read_graph("terminal_graph.gml", format = "gml") %>%
+  set_vertex_attr("degree", value = degree(G)) #adding a degree attribute
+
+ggraph(G, layout = "graphopt") +
+  theme_void() +
+  geom_edge_link(color = "grey70") +
+  geom_node_point(aes(color = as.factor(agent), size = degree)) +
+  labs(color = "Opinion") +
+  scale_size(range = c(1, 4)) +
+  scale_color_manual(values = c("maroon", "steelblue")) +
+  guides(size = FALSE)
 ```
 
 ## Next Steps
